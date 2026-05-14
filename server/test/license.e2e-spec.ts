@@ -219,7 +219,7 @@ describe('License API (e2e)', () => {
     await app.close();
   });
 
-  function signedPost(path: string, body: unknown) {
+  function signedPost(path: string, body: Record<string, unknown>) {
     const timestamp = Date.now().toString();
     const nonce = `${timestamp}-${Math.random()}`;
     const secret = process.env.PUBLIC_API_SIGNING_SECRET ?? 'ci-public-api-signing-secret';
