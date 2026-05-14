@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2021","module":"commonjs","lib":["ES2021","DOM"],"strict":true,"moduleResolution":"Node","esModuleInterop":true,"skipLibCheck":true,"outDir":"dist/main","rootDir":"src","types":["node"]},"include":["src/main.ts","src/preload.ts","src/license-status.ts","src/demo-config.ts"],"exclude":["src/**/*.spec.ts"]}
