@@ -6,3 +6,4 @@ coverage/
 .claude/
 .vite/
 /package-lock.json
+sdk-cpp/build/
