@@ -41,6 +41,8 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.package }}/package-lock.json
       - run: npm --prefix ${{ matrix.package }} ci
+      - if: matrix.package == 'demo-electron'
+        run: npm --prefix sdk-electron ci && npm --prefix sdk-electron run build
       - run: npm --prefix ${{ matrix.package }} run lint
       - run: npm --prefix ${{ matrix.package }} run test
       - run: npm --prefix ${{ matrix.package }} run build

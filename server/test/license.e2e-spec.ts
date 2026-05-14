@@ -1,10 +1,11 @@
+import { createHmac } from 'crypto';
 import { INestApplication, HttpStatus, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DeviceStatus, LeaseStatus, LicenseStatus, PlanStatus, ProductStatus } from '@prisma/client';
 import * as request from 'supertest';
 import { AuditService } from '../src/audit/audit.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
-import { NonceReplayService, RequestSignatureGuard } from '../src/common/guards/request-signature.guard';
+import { NonceReplayService, RequestSignatureGuard, stableStringify } from '../src/common/guards/request-signature.guard';
 import { ErrorCode } from '../src/common/error-codes';
 import { PrismaService } from '../src/database/prisma.service';
 import { DeviceService } from '../src/device/device.service';
@@ -218,10 +219,21 @@ describe('License API (e2e)', () => {
     await app.close();
   });
 
+  function signedPost(path: string, body: unknown) {
+    const timestamp = Date.now().toString();
+    const nonce = `${timestamp}-${Math.random()}`;
+    const secret = process.env.PUBLIC_API_SIGNING_SECRET ?? 'ci-public-api-signing-secret';
+    const signature = createHmac('sha256', secret).update(['POST', path, timestamp, nonce, stableStringify(body)].join('\n')).digest('base64url');
+    return request(app.getHttpServer())
+      .post(path)
+      .set('x-entitlement-timestamp', timestamp)
+      .set('x-entitlement-nonce', nonce)
+      .set('x-entitlement-signature', signature)
+      .send(body);
+  }
+
   async function activate(deviceCode = 'dev-1') {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/license/activate')
-      .send({ productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload(deviceCode) })
+    const res = await signedPost('/api/v1/license/activate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload(deviceCode) })
       .expect(HttpStatus.CREATED);
     return res.body.data.leaseToken as string;
   }
@@ -229,24 +241,18 @@ describe('License API (e2e)', () => {
   it('activates, verifies, heartbeats, and deactivates a device', async () => {
     const leaseToken = await activate();
 
-    await request(app.getHttpServer())
-      .post('/api/v1/license/verify')
-      .send({ productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
+    await signedPost('/api/v1/license/verify', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
       .expect(HttpStatus.CREATED)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.OK, message: 'valid', data: { licenseStatus: LicenseStatus.active } });
       });
 
-    const heartbeat = await request(app.getHttpServer())
-      .post('/api/v1/license/heartbeat')
-      .send({ productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.1' })
+    const heartbeat = await signedPost('/api/v1/license/heartbeat', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.1' })
       .expect(HttpStatus.CREATED);
     expect(heartbeat.body).toMatchObject({ code: ErrorCode.OK, message: 'refreshed' });
     expect(heartbeat.body.data.leaseToken).not.toEqual(leaseToken);
 
-    await request(app.getHttpServer())
-      .post('/api/v1/license/deactivate')
-      .send({ productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', deviceCode: 'dev-1' })
+    await signedPost('/api/v1/license/deactivate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', deviceCode: 'dev-1' })
       .expect(HttpStatus.CREATED)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.OK, message: 'device removed', data: null });
@@ -260,9 +266,7 @@ describe('License API (e2e)', () => {
     const leaseToken = await activate();
     store.license.status = LicenseStatus.banned;
 
-    await request(app.getHttpServer())
-      .post('/api/v1/license/verify')
-      .send({ productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
+    await signedPost('/api/v1/license/verify', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
       .expect(HttpStatus.FORBIDDEN)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.LICENSE_BANNED, message: 'license banned', data: null });
@@ -274,9 +278,7 @@ describe('License API (e2e)', () => {
     store.policy.minSupportedVersion = '2.0.0';
     store.policy.forceUpgrade = true;
 
-    await request(app.getHttpServer())
-      .post('/api/v1/license/verify')
-      .send({ productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
+    await signedPost('/api/v1/license/verify', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
       .expect(HttpStatus.BAD_REQUEST)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.FORCE_UPGRADE_REQUIRED, message: 'force upgrade required', data: null });
@@ -286,9 +288,7 @@ describe('License API (e2e)', () => {
   it('rejects activation when the active device limit is reached', async () => {
     await activate('dev-1');
 
-    await request(app.getHttpServer())
-      .post('/api/v1/license/activate')
-      .send({ productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload('dev-2') })
+    await signedPost('/api/v1/license/activate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload('dev-2') })
       .expect(HttpStatus.BAD_REQUEST)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.DEVICE_LIMIT_REACHED, message: 'device limit reached', data: null });
