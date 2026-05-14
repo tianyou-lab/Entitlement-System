@@ -4,16 +4,46 @@ import ElementPlus from 'element-plus';
 import App from '../App.vue';
 
 const api = vi.hoisted(() => ({
+  changePassword: vi.fn(),
   clearToken: vi.fn(),
+  createCardKey: vi.fn(),
+  createChannel: vi.fn(),
+  createDeviceUnbindRequest: vi.fn(),
   createLicense: vi.fn(),
+  createOfflinePackage: vi.fn(),
   createPlan: vi.fn(),
   createProduct: vi.fn(),
+  createProtectorAdapter: vi.fn(),
+  createRiskEvent: vi.fn(),
+  createTenant: vi.fn(),
+  createVersionPolicy: vi.fn(),
+  getRiskSummary: vi.fn(),
   getToken: vi.fn(),
+  listActivationLogs: vi.fn(),
+  listAuditLogs: vi.fn(),
+  listCardKeys: vi.fn(),
+  listChannels: vi.fn(),
+  listDeviceUnbindRequests: vi.fn(),
+  listDevices: vi.fn(),
+  listHeartbeatLogs: vi.fn(),
   listLicenses: vi.fn(),
+  listOfflinePackages: vi.fn(),
   listPlans: vi.fn(),
   listProducts: vi.fn(),
+  listProtectorAdapters: vi.fn(),
+  listRiskEvents: vi.fn(),
+  listTenants: vi.fn(),
+  listVersionPolicies: vi.fn(),
   login: vi.fn(),
+  reviewDeviceUnbindRequest: vi.fn(),
+  updateCardKeyStatus: vi.fn(),
+  updateChannelStatus: vi.fn(),
+  updateDeviceStatus: vi.fn(),
   updateLicenseStatus: vi.fn(),
+  updateOfflinePackageStatus: vi.fn(),
+  updateProtectorAdapterStatus: vi.fn(),
+  updateRiskEventStatus: vi.fn(),
+  updateVersionPolicy: vi.fn(),
 }));
 
 vi.mock('../api', () => api);
@@ -23,6 +53,19 @@ beforeEach(() => {
   api.listProducts.mockResolvedValue([{ id: 1, productCode: 'demo_app', name: 'Demo App', status: 'active' }]);
   api.listPlans.mockResolvedValue([{ id: 1, productId: 1, planCode: 'basic', name: 'Basic', status: 'active', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: {} }]);
   api.listLicenses.mockResolvedValue([{ id: 1, productId: 1, planId: 1, licenseKey: 'DEMO-AAAA-BBBB-CCCC', status: 'active' }]);
+  api.listDevices.mockResolvedValue([]);
+  api.listActivationLogs.mockResolvedValue([]);
+  api.listHeartbeatLogs.mockResolvedValue([]);
+  api.listAuditLogs.mockResolvedValue([]);
+  api.listVersionPolicies.mockResolvedValue([]);
+  api.listTenants.mockResolvedValue([]);
+  api.listChannels.mockResolvedValue([]);
+  api.listCardKeys.mockResolvedValue([]);
+  api.listOfflinePackages.mockResolvedValue([]);
+  api.listRiskEvents.mockResolvedValue([]);
+  api.getRiskSummary.mockResolvedValue({ total: 0, open: 0, high: 0, resolved: 0 });
+  api.listDeviceUnbindRequests.mockResolvedValue([]);
+  api.listProtectorAdapters.mockResolvedValue([]);
 });
 
 describe('App', () => {
@@ -30,8 +73,9 @@ describe('App', () => {
     api.getToken.mockReturnValue(null);
     const wrapper = mount(App, { global: { plugins: [ElementPlus] } });
 
-    expect(wrapper.text()).toContain('授权系统管理端');
-    expect(wrapper.text()).toContain('使用 Admin 账号登录后管理产品、套餐和 License。');
+    expect(wrapper.text()).toContain('卡密授权验证系统');
+    expect(wrapper.text()).toContain('授权运营管理后台');
+    expect(wrapper.text()).toContain('管理员登录');
   });
 
   it('loads admin resources when token exists', async () => {
@@ -42,9 +86,9 @@ describe('App', () => {
     expect(api.listProducts).toHaveBeenCalled();
     expect(api.listPlans).toHaveBeenCalled();
     expect(api.listLicenses).toHaveBeenCalled();
-    expect(wrapper.text()).toContain('通用授权系统管理端');
-    expect(wrapper.text()).toContain('产品');
-    expect(wrapper.text()).toContain('套餐');
-    expect(wrapper.text()).toContain('License');
+    expect(wrapper.text()).toContain('授权与卡密管理后台');
+    expect(wrapper.text()).toContain('产品管理');
+    expect(wrapper.text()).toContain('套餐配置');
+    expect(wrapper.text()).toContain('授权码');
   });
 });

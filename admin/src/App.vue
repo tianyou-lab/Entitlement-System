@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { changePassword, clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
@@ -23,8 +23,11 @@ const riskEvents = ref<RiskEvent[]>([]);
 const riskSummary = ref<RiskSummary>({ total: 0, open: 0, high: 0, resolved: 0 });
 const unbindRequests = ref<DeviceUnbindRequest[]>([]);
 const protectorAdapters = ref<ProtectorAdapter[]>([]);
+const selectedLicenses = ref<License[]>([]);
+const selectedCardKeys = ref<CardKey[]>([]);
+const darkMode = ref(false);
 
-const loginForm = reactive({ username: 'admin', password: 'admin123456' });
+const loginForm = reactive({ username: 'admin', password: '' });
 const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
@@ -39,6 +42,46 @@ const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 
 const protectorAdapterForm = reactive<CreateProtectorAdapterInput>({ tenantId: undefined, productId: undefined, adapterCode: '', name: '', notes: '' });
 
 const isAuthenticated = computed(() => Boolean(token.value));
+const activeLicenses = computed(() => licenses.value.filter((license) => license.status === 'active').length);
+const disabledLicenses = computed(() => licenses.value.filter((license) => license.status === 'banned' || license.status === 'suspended' || license.status === 'inactive').length);
+const activeCardKeys = computed(() => cardKeys.value.filter((cardKey) => cardKey.status === 'unused' || cardKey.status === 'issued').length);
+const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'active').length);
+const openRisks = computed(() => riskSummary.value.open);
+
+function statusText(status?: string | boolean) {
+  if (typeof status === 'boolean') return status ? '是' : '否';
+  const map: Record<string, string> = {
+    active: '正常',
+    inactive: '停用',
+    expired: '已过期',
+    banned: '已封禁',
+    suspended: '已暂停',
+    removed: '已移除',
+    unused: '未使用',
+    issued: '已发放',
+    redeemed: '已兑换',
+    disabled: '已禁用',
+    revoked: '已撤销',
+    open: '待处理',
+    resolved: '已解决',
+    ignored: '已忽略',
+    pending: '待审核',
+    approved: '已通过',
+    rejected: '已拒绝',
+    low: '低',
+    medium: '中',
+    high: '高',
+  };
+  return status ? (map[status] ?? status) : '-';
+}
+
+function statusTagType(status?: string | boolean) {
+  if (status === true || status === 'active' || status === 'unused' || status === 'resolved' || status === 'approved') return 'success';
+  if (status === 'issued' || status === 'pending' || status === 'medium') return 'warning';
+  if (status === 'banned' || status === 'disabled' || status === 'revoked' || status === 'high' || status === 'rejected') return 'danger';
+  if (status === 'expired' || status === 'suspended' || status === 'removed') return 'info';
+  return undefined;
+}
 
 onMounted(async () => {
   if (isAuthenticated.value) await refreshAll();
@@ -133,7 +176,7 @@ async function submitPlan() {
 }
 
 async function submitLicense() {
-  await withMessage('License 已创建', async () => {
+  await withMessage('授权码已创建', async () => {
     await createLicense({
       ...licenseForm,
       licenseKey: licenseForm.licenseKey || undefined,
@@ -149,8 +192,59 @@ async function submitLicense() {
 }
 
 async function changeLicenseStatus(row: License, status: License['status']) {
-  await withMessage('License 状态已更新', async () => {
+  await withMessage('授权码状态已更新', async () => {
     await updateLicenseStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+function handleLicenseSelection(rows: License[]) {
+  selectedLicenses.value = rows;
+}
+
+function handleCardKeySelection(rows: CardKey[]) {
+  selectedCardKeys.value = rows;
+}
+
+async function copyText(value?: string) {
+  if (!value) return;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+  } else {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  }
+  ElMessage.success('已复制到剪贴板');
+}
+
+async function batchBanLicenses() {
+  if (!selectedLicenses.value.length) return;
+  try {
+    await ElMessageBox.confirm(`确认封禁选中的 ${selectedLicenses.value.length} 个授权码？`, '批量封禁确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  await withMessage('选中授权码已封禁', async () => {
+    await Promise.all(selectedLicenses.value.map((license) => updateLicenseStatus(license.id, 'banned')));
+    selectedLicenses.value = [];
+    await refreshAll();
+  });
+}
+
+async function batchDisableCardKeys() {
+  if (!selectedCardKeys.value.length) return;
+  try {
+    await ElMessageBox.confirm(`确认禁用选中的 ${selectedCardKeys.value.length} 个卡密？`, '批量禁用确认', { type: 'warning' });
+  } catch {
+    return;
+  }
+  await withMessage('选中卡密已禁用', async () => {
+    await Promise.all(selectedCardKeys.value.map((cardKey) => updateCardKeyStatus(cardKey.id, 'disabled')));
+    selectedCardKeys.value = [];
     await refreshAll();
   });
 }
@@ -305,7 +399,7 @@ function parseJson(value: string) {
   try {
     return JSON.parse(value) as Record<string, unknown>;
   } catch {
-    throw new Error('Feature Flags 必须是合法 JSON');
+    throw new Error('功能开关必须是合法 JSON');
   }
 }
 
@@ -331,23 +425,36 @@ async function withMessage(message: string, action: () => Promise<void>) {
 </script>
 
 <template>
-  <main v-if="!isAuthenticated" class="login-card">
-    <h1>授权系统管理端</h1>
-    <p>使用 Admin 账号登录后管理产品、套餐和 License。</p>
-    <el-form label-position="top" @submit.prevent="submitLogin">
-      <el-form-item label="用户名">
-        <el-input v-model="loginForm.username" autocomplete="username" />
-      </el-form-item>
-      <el-form-item label="密码">
-        <el-input v-model="loginForm.password" type="password" autocomplete="current-password" show-password />
-      </el-form-item>
-      <el-button type="primary" :loading="loading" native-type="submit" style="width: 100%">登录</el-button>
-    </el-form>
+  <main v-if="!isAuthenticated" class="login-page">
+    <section class="login-hero">
+      <div class="brand-mark">KEY</div>
+      <p class="eyebrow">卡密授权验证系统</p>
+      <h1>授权运营管理后台</h1>
+      <p>统一管理产品、套餐、授权码、卡密、设备绑定和风险风控，保障软件授权链路安全可控。</p>
+      <div class="hero-pills">
+        <span>授权码发放</span>
+        <span>设备绑定</span>
+        <span>风险审计</span>
+      </div>
+    </section>
+    <section class="login-card">
+      <h2>管理员登录</h2>
+      <p>请输入生产环境管理员账号和密码。</p>
+      <el-form label-position="top" @submit.prevent="submitLogin">
+        <el-form-item label="管理员账号">
+          <el-input v-model="loginForm.username" autocomplete="username" placeholder="admin" />
+        </el-form-item>
+        <el-form-item label="登录密码">
+          <el-input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="请输入管理员密码" show-password />
+        </el-form-item>
+        <el-button type="primary" :loading="loading" native-type="submit" style="width: 100%">进入管理后台</el-button>
+      </el-form>
+    </section>
   </main>
 
-  <main v-else-if="passwordChangeRequired" class="login-card">
+  <main v-else-if="passwordChangeRequired" class="login-card password-card">
     <h1>修改默认管理员密码</h1>
-    <p>首次登录后必须设置至少 12 位的新密码。</p>
+    <p>首次登录后必须设置至少 12 位的新密码，以保护卡密和授权数据安全。</p>
     <el-form label-position="top" @submit.prevent="submitPasswordChange">
       <el-form-item label="旧密码">
         <el-input v-model="passwordForm.oldPassword" type="password" autocomplete="current-password" show-password />
@@ -360,24 +467,53 @@ async function withMessage(message: string, action: () => Promise<void>) {
     </el-form>
   </main>
 
-  <main v-else class="admin-shell">
-    <header class="header">
-      <div>
-        <h1>通用授权系统管理端</h1>
-        <p>管理产品、套餐、License 状态与封禁流程。</p>
+  <main v-else class="admin-shell" :class="{ dark: darkMode }">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">KEY</div>
+        <div>
+          <strong>卡密授权系统</strong>
+          <span>Entitlement Console</span>
+        </div>
       </div>
-      <div>
-        <el-button @click="refreshAll">刷新</el-button>
-        <el-button type="danger" plain @click="logout">退出</el-button>
+      <div class="sidebar-menu">
+        <span>产品与套餐</span>
+        <span>授权码管理</span>
+        <span>渠道卡密</span>
+        <span>设备风控</span>
+        <span>日志审计</span>
       </div>
-    </header>
+    </aside>
 
-    <el-tabs type="border-card" v-loading="loading">
-      <el-tab-pane label="产品">
+    <section class="workspace">
+      <header class="header">
+        <div>
+          <p class="eyebrow">运营控制台</p>
+          <h1>授权与卡密管理后台</h1>
+          <p>统一管理授权码、卡密发放、设备绑定、版本策略和异常风险。</p>
+        </div>
+        <div class="header-actions">
+          <el-button circle title="消息中心">信</el-button>
+          <el-button circle title="系统设置">设</el-button>
+          <el-switch v-model="darkMode" active-text="深色" inactive-text="浅色" />
+          <div class="avatar">管</div>
+          <el-button @click="refreshAll">刷新数据</el-button>
+          <el-button type="danger" plain @click="logout">退出登录</el-button>
+        </div>
+      </header>
+
+      <section class="metric-grid">
+        <article class="metric-card primary"><span>有效授权码</span><strong>{{ activeLicenses }}</strong><small>可正常验证和续租</small></article>
+        <article class="metric-card"><span>待用/已发卡密</span><strong>{{ activeCardKeys }}</strong><small>渠道和批次发放库存</small></article>
+        <article class="metric-card"><span>在线绑定设备</span><strong>{{ onlineDevices }}</strong><small>当前正常设备数量</small></article>
+        <article class="metric-card danger"><span>待处理风险</span><strong>{{ openRisks }}</strong><small>高危 {{ riskSummary.high }} / 停用授权 {{ disabledLicenses }}</small></article>
+      </section>
+
+      <el-tabs class="console-tabs" type="border-card" v-loading="loading">
+      <el-tab-pane label="产品管理">
         <div class="table-card">
           <div class="toolbar">
-            <strong>创建产品</strong>
-            <span class="muted">productCode 必须与客户端 productCode 一致</span>
+            <div><strong>创建授权产品</strong><span class="muted">产品编码必须与客户端 productCode 一致</span></div>
           </div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitProduct">
             <el-form-item label="产品编码">
@@ -396,11 +532,13 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="productCode" label="产品编码" />
           <el-table-column prop="name" label="名称" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="套餐">
+      <el-tab-pane label="套餐配置">
         <div class="table-card">
           <div class="toolbar"><strong>创建套餐</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitPlan">
@@ -427,7 +565,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-form-item label="宽限小时">
               <el-input-number v-model="planForm.graceHours" :min="0" style="width: 100%" />
             </el-form-item>
-            <el-form-item class="full" label="Feature Flags JSON">
+            <el-form-item class="full" label="功能开关 JSON">
               <el-input v-model="planFlagsText" type="textarea" :rows="4" />
             </el-form-item>
             <el-button type="primary" native-type="submit">创建套餐</el-button>
@@ -439,13 +577,18 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="product.productCode" label="产品" />
           <el-table-column prop="maxDevices" label="设备数" width="100" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="License">
+      <el-tab-pane label="授权码">
         <div class="table-card">
-          <div class="toolbar"><strong>创建 License</strong></div>
+          <div class="toolbar">
+            <div><strong>生成授权码</strong><span class="muted">支持自动生成、设备数覆盖和功能开关覆盖</span></div>
+            <el-button type="warning" plain :disabled="!selectedLicenses.length" @click="batchBanLicenses">批量封禁</el-button>
+          </div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitLicense">
             <el-form-item label="产品">
               <el-select v-model="licenseForm.productId" style="width: 100%">
@@ -457,7 +600,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
                 <el-option v-for="plan in plans" :key="plan.id" :label="`${plan.name} (${plan.planCode})`" :value="plan.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="License Key（留空自动生成）">
+            <el-form-item label="授权码（License Key）（留空自动生成）">
               <el-input v-model="licenseForm.licenseKey" />
             </el-form-item>
             <el-form-item label="到期时间">
@@ -469,20 +612,28 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-form-item label="备注">
               <el-input v-model="licenseForm.notes" />
             </el-form-item>
-            <el-form-item class="full" label="Feature Flags Override JSON">
+            <el-form-item class="full" label="功能开关覆盖 JSON">
               <el-input v-model="licenseFlagsText" type="textarea" :rows="3" placeholder="留空表示不覆盖" />
             </el-form-item>
-            <el-button type="primary" native-type="submit">创建 License</el-button>
+            <el-button type="primary" native-type="submit">生成授权码</el-button>
           </el-form>
         </div>
-        <el-table :data="licenses" style="margin-top: 18px">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="licenseKey" label="License Key" min-width="210" />
-          <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column prop="plan.planCode" label="套餐" />
-          <el-table-column prop="status" label="状态" width="130" />
-          <el-table-column prop="expireAt" label="到期时间" min-width="190" />
-          <el-table-column label="操作" width="220">
+        <el-table :data="licenses" class="data-table" size="small" stripe border empty-text="暂无授权码，先生成一个授权码" @selection-change="handleLicenseSelection">
+          <el-table-column type="selection" width="44" fixed />
+          <el-table-column prop="id" label="ID" width="80" sortable />
+          <el-table-column prop="licenseKey" label="授权码（License Key）" min-width="240" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-button link type="primary" @click="copyText(row.licenseKey)">复制</el-button>
+              <span class="key-text">{{ row.licenseKey }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="product.productCode" label="产品" width="140" />
+          <el-table-column prop="plan.planCode" label="套餐" width="140" />
+          <el-table-column label="状态" width="120" sortable>
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="expireAt" label="到期时间" min-width="190" sortable />
+          <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <el-button size="small" @click="changeLicenseStatus(row, 'active')">启用</el-button>
               <el-button size="small" type="danger" @click="changeLicenseStatus(row, 'banned')">封禁</el-button>
@@ -491,14 +642,16 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="设备">
+      <el-tab-pane label="设备绑定">
         <el-table :data="devices">
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="deviceCode" label="设备码" min-width="180" />
           <el-table-column prop="deviceName" label="名称" />
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="appVersion" label="应用版本" width="120" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column prop="lastSeenAt" label="最后在线" min-width="190" />
           <el-table-column label="操作" width="240">
             <template #default="{ row }">
@@ -567,7 +720,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
                 <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="License">
+            <el-form-item label="授权码">
               <el-select v-model="riskEventForm.licenseId" clearable style="width: 100%">
                 <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
               </el-select>
@@ -597,9 +750,11 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="eventType" label="类型" />
           <el-table-column prop="severity" label="级别" width="100" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column prop="summary" label="摘要" />
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column label="操作" width="210">
             <template #default="{ row }">
               <el-button size="small" @click="changeRiskEventStatus(row, 'resolved')">解决</el-button>
@@ -622,7 +777,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <el-table :data="tenants" style="margin-top: 18px">
           <el-table-column prop="tenantCode" label="租户编码" />
           <el-table-column prop="name" label="名称" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
         </el-table>
 
         <div class="table-card" style="margin-top: 18px">
@@ -644,7 +801,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="channelCode" label="渠道编码" />
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="tenant.name" label="租户" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column label="操作" width="170">
             <template #default="{ row }">
               <el-button size="small" @click="changeChannelStatus(row, row.status === 'active' ? 'disabled' : 'active')">{{ row.status === 'active' ? '停用' : '启用' }}</el-button>
@@ -653,7 +812,10 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </el-table>
 
         <div class="table-card" style="margin-top: 18px">
-          <div class="toolbar"><strong>生成卡密</strong></div>
+          <div class="toolbar">
+            <div><strong>生成卡密</strong><span class="muted">适合渠道批次发放，可留空自动生成卡密串</span></div>
+            <el-button type="danger" plain :disabled="!selectedCardKeys.length" @click="batchDisableCardKeys">批量禁用</el-button>
+          </div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitCardKey">
             <el-form-item label="产品">
               <el-select v-model="cardKeyForm.productId" style="width: 100%">
@@ -676,13 +838,21 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-button type="primary" native-type="submit">生成卡密</el-button>
           </el-form>
         </div>
-        <el-table :data="cardKeys" style="margin-top: 18px">
-          <el-table-column prop="cardKey" label="卡密" min-width="210" />
-          <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column prop="plan.planCode" label="套餐" />
-          <el-table-column prop="channel.name" label="渠道" />
-          <el-table-column prop="status" label="状态" width="120" />
-          <el-table-column label="操作" width="220">
+        <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无卡密，点击上方按钮生成" @selection-change="handleCardKeySelection">
+          <el-table-column type="selection" width="44" fixed />
+          <el-table-column prop="cardKey" label="卡密" min-width="240" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-button link type="primary" @click="copyText(row.cardKey)">复制</el-button>
+              <span class="key-text">{{ row.cardKey }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="product.productCode" label="产品" width="130" />
+          <el-table-column prop="plan.planCode" label="套餐" width="130" />
+          <el-table-column prop="channel.name" label="渠道" width="140" />
+          <el-table-column label="状态" width="120" sortable>
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <el-button size="small" @click="changeCardKeyStatus(row, 'issued')">发放</el-button>
               <el-button size="small" type="danger" @click="changeCardKeyStatus(row, 'disabled')">禁用</el-button>
@@ -695,7 +865,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <div class="table-card">
           <div class="toolbar"><strong>创建离线授权包</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitOfflinePackage">
-            <el-form-item label="License">
+            <el-form-item label="授权码">
               <el-select v-model="offlinePackageForm.licenseId" style="width: 100%">
                 <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
               </el-select>
@@ -712,10 +882,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="offlinePackages" style="margin-top: 18px">
           <el-table-column prop="packageCode" label="包编码" min-width="210" />
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" />
           <el-table-column prop="expireAt" label="到期时间" min-width="190" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column label="操作" width="160">
             <template #default="{ row }">
               <el-button size="small" @click="changeOfflinePackageStatus(row, row.status === 'active' ? 'revoked' : 'active')">{{ row.status === 'active' ? '撤销' : '恢复' }}</el-button>
@@ -726,7 +898,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar"><strong>自助解绑申请</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitUnbindRequest">
-            <el-form-item label="License">
+            <el-form-item label="授权码">
               <el-select v-model="unbindRequestForm.licenseId" style="width: 100%">
                 <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
               </el-select>
@@ -741,10 +913,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
           </el-form>
         </div>
         <el-table :data="unbindRequests" style="margin-top: 18px">
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" />
           <el-table-column prop="reason" label="原因" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column label="操作" width="180">
             <template #default="{ row }">
               <el-button size="small" @click="reviewUnbindRequest(row, 'approved')">通过</el-button>
@@ -778,7 +952,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="adapterCode" label="编码" />
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
           <el-table-column prop="notes" label="备注" />
           <el-table-column label="操作" width="160">
             <template #default="{ row }">
@@ -792,7 +968,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <h3>激活日志</h3>
         <el-table :data="activationLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
           <el-table-column prop="resultCode" label="结果" width="140" />
           <el-table-column prop="message" label="消息" />
@@ -802,7 +978,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <h3>心跳日志</h3>
         <el-table :data="heartbeatLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
           <el-table-column prop="actionType" label="动作" width="120" />
           <el-table-column prop="resultCode" label="结果" width="140" />
