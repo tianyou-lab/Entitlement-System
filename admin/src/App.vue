@@ -994,6 +994,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="createdAt" label="时间" min-width="190" />
         </el-table>
       </el-tab-pane>
-    </el-tabs>
+      </el-tabs>
+    </section>
   </main>
 </template>
