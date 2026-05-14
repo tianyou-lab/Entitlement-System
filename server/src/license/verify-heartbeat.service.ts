@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { DeviceService } from '../device/device.service';
 import { LeaseService } from '../lease/lease.service';
 import { VersionService } from '../version/version.service';
+import { RiskService } from '../risk/risk.service';
 import { DeactivateDto, HeartbeatDto, VerifyDto } from './dto/license.dto';
 import { LicenseService } from './license.service';
 
@@ -14,6 +15,7 @@ export class VerifyHeartbeatService {
     private readonly leases: LeaseService,
     private readonly versions: VersionService,
     private readonly audit: AuditService,
+    private readonly risk: RiskService,
   ) {}
 
   async verify(dto: VerifyDto, ip?: string) {
@@ -55,6 +57,7 @@ export class VerifyHeartbeatService {
       ip,
       payload: dto,
     });
+    await this.risk.inspectHeartbeat(lease.licenseId, lease.deviceId, dto.appVersion);
 
     return {
       leaseToken: issued.leaseToken,
@@ -71,9 +74,10 @@ export class VerifyHeartbeatService {
       await this.audit.heartbeat({ licenseId: license.id, deviceId: device.id, actionType: 'deactivate', resultCode: 'DEVICE_REMOVED', ip, payload: dto });
       return null;
     }
-    await this.devices.remove(dto.deviceCode);
+    const removed = await this.devices.remove(dto.deviceCode);
     await this.leases.revokeActiveByDevice(device.id);
     await this.audit.heartbeat({ licenseId: license.id, deviceId: device.id, actionType: 'deactivate', resultCode: 'OK', ip, payload: dto });
+    await this.risk.inspectDeactivate(license.id, removed.id);
     return null;
   }
 }

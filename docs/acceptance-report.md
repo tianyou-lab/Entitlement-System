@@ -50,10 +50,10 @@ make -C sdk-cpp
 | 10 | 到期 License 验证 | 返回 `LICENSE_EXPIRED` | 单元测试已覆盖 |
 | 11 | 强制升级策略 | 返回 `FORCE_UPGRADE_REQUIRED` | 自动化 e2e 已通过 |
 | 12 | C++ Demo 接入 | activate / verify / heartbeat / deactivate 成功 | 临时数据库联调已通过 |
-| 13 | 风控面板 | 可创建、查看、处理风险事件并统计风险摘要 | Admin UI build 通过，接口已编译 |
+| 13 | 风控面板 | 可创建、查看、处理风险事件并统计风险摘要；激活频率、IP 切换、指纹变化、解绑频率、版本异常、心跳频率自动识别 | Admin UI build 通过，Risk Service 单测已覆盖 |
 | 14 | 渠道/代理商管理 | 可创建渠道并启停渠道 | Admin UI build 通过，接口已编译 |
 | 15 | 卡密管理 | 可生成卡密并维护发放/禁用状态 | Admin UI build 通过，接口已编译 |
-| 16 | 离线授权包 | 可生成、撤销、恢复离线授权包 | Admin UI build 通过，接口已编译 |
+| 16 | 离线授权包 | 可生成、撤销、恢复离线授权包，并通过公开导入接口校验签名和有效期 | Admin UI build 通过，接口已编译 |
 | 17 | 自助设备解绑 | 客户端可提交申请，后台可通过/拒绝 | Admin UI build 通过，接口已编译 |
 | 18 | 多租户 | 可创建租户，并关联产品、渠道、卡密、风险、适配器 | Prisma schema 校验通过 |
 | 19 | .NET SDK | activate / verify / heartbeat / deactivate / version policy 客户端已提供 | 源码已完成，待 .NET SDK 环境构建 |

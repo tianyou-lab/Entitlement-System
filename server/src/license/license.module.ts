@@ -5,6 +5,7 @@ import { DeviceService } from '../device/device.service';
 import { LeaseService } from '../lease/lease.service';
 import { PlanService } from '../plan/plan.service';
 import { ProductService } from '../product/product.service';
+import { RiskService } from '../risk/risk.service';
 import { VersionController } from '../version/version.controller';
 import { VersionService } from '../version/version.service';
 import { ActivationService } from './activation.service';
@@ -22,6 +23,7 @@ import { VerifyHeartbeatService } from './verify-heartbeat.service';
     LeaseService,
     VersionService,
     AuditService,
+    RiskService,
     NonceReplayService,
     RequestSignatureGuard,
     ActivationService,

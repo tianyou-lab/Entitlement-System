@@ -15,6 +15,7 @@ import { LicenseService } from '../src/license/license.service';
 import { VerifyHeartbeatService } from '../src/license/verify-heartbeat.service';
 import { PlanService } from '../src/plan/plan.service';
 import { ProductService } from '../src/product/product.service';
+import { RiskService } from '../src/risk/risk.service';
 import { VersionService } from '../src/version/version.service';
 
 const devicePayload = (deviceCode: string) => ({
@@ -86,6 +87,7 @@ function createPrismaStub() {
   const leases: any[] = [];
   const activationLogs: any[] = [];
   const heartbeatLogs: any[] = [];
+  const riskEvents: any[] = [];
 
   const prisma = {
     product: {
@@ -104,7 +106,7 @@ function createPrismaStub() {
       }),
     },
     device: {
-      findUnique: jest.fn(({ where }) => Promise.resolve(devices.find((device) => device.deviceCode === where.deviceCode) ?? null)),
+      findUnique: jest.fn(({ where }) => Promise.resolve(devices.find((device) => device.deviceCode === where.deviceCode || device.id === where.id) ?? null)),
       count: jest.fn(({ where }) => Promise.resolve(devices.filter((device) => device.licenseId === where.licenseId && device.status === where.status).length)),
       create: jest.fn(({ data }) => {
         const device = {
@@ -157,14 +159,23 @@ function createPrismaStub() {
       findFirst: jest.fn(({ where }) => Promise.resolve(where.productId === product.id ? policy : null)),
     },
     activationLog: {
+      count: jest.fn(({ where }) => Promise.resolve(activationLogs.filter((log) => log.licenseId === where.licenseId).length)),
+      findMany: jest.fn(({ where }) => Promise.resolve(activationLogs.filter((log) => log.licenseId === where.licenseId && log.ip).map((log) => ({ ip: log.ip })))),
       create: jest.fn(({ data }) => {
-        activationLogs.push(data);
+        activationLogs.push({ ...data, createdAt: new Date() });
         return Promise.resolve(data);
       }),
     },
     heartbeatLog: {
+      count: jest.fn(({ where }) => Promise.resolve(heartbeatLogs.filter((log) => log.licenseId === where.licenseId && log.deviceId === where.deviceId && log.actionType === where.actionType).length)),
       create: jest.fn(({ data }) => {
-        heartbeatLogs.push(data);
+        heartbeatLogs.push({ ...data, createdAt: new Date() });
+        return Promise.resolve(data);
+      }),
+    },
+    riskEvent: {
+      create: jest.fn(({ data }) => {
+        riskEvents.push(data);
         return Promise.resolve(data);
       }),
     },
@@ -189,6 +200,7 @@ describe('License API (e2e)', () => {
         LeaseService,
         VersionService,
         AuditService,
+        RiskService,
         NonceReplayService,
         RequestSignatureGuard,
         ActivationService,

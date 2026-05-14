@@ -1,9 +1,10 @@
 import { randomBytes, createHmac } from 'crypto';
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OfflinePackageStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { AppError } from '../../common/errors';
 import { ErrorCode } from '../../common/error-codes';
+import { RequestSignatureGuard } from '../../common/guards/request-signature.guard';
 import { ok } from '../../common/response';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
@@ -22,6 +23,7 @@ import {
   UpdateProtectorAdapterStatusDto,
   UpdateRiskEventStatusDto,
 } from './p2.dto';
+import { ImportOfflinePackageDto } from './offline.dto';
 
 @UseGuards(AdminAuthGuard)
 @Controller('/admin')
@@ -96,7 +98,17 @@ export class P2AdminController {
 
   @Post('offline-packages')
   async createOfflinePackage(@Body() dto: CreateOfflinePackageDto) {
-    const payload = dto.payload ?? { licenseId: dto.licenseId, deviceId: dto.deviceId, expireAt: dto.expireAt };
+    const license = await this.prisma.license.findUnique({ where: { id: dto.licenseId }, include: { product: true, plan: true } });
+    if (!license) throw new AppError(ErrorCode.LICENSE_NOT_FOUND, 'license not found');
+    const payload = dto.payload ?? {
+      licenseId: dto.licenseId,
+      licenseKey: license.licenseKey,
+      productCode: license.product.productCode,
+      planCode: license.plan.planCode,
+      deviceId: dto.deviceId,
+      expireAt: dto.expireAt,
+      featureFlags: license.featureFlagsOverride ?? license.plan.featureFlags,
+    };
     const packageCode = dto.packageCode ?? this.randomCode('OFFLINE');
     const offlinePackage = await this.prisma.offlinePackage.create({
       data: {
@@ -226,11 +238,29 @@ export class P2AdminController {
   }
 
   private signOfflinePackage(packageCode: string, payload: Record<string, unknown>) {
-    const secret = process.env.LEASE_SECRET ?? 'dev-lease-secret';
-    return createHmac('sha256', secret).update(`${packageCode}.${JSON.stringify(payload)}`).digest('base64url');
+    return signOfflinePackage(packageCode, payload);
   }
 }
 
+@UseGuards(RequestSignatureGuard)
+@Controller('/api/v1/offline-packages')
+export class PublicOfflinePackageController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Post('import')
+  async importPackage(@Body() dto: ImportOfflinePackageDto) {
+    const offlinePackage = await this.prisma.offlinePackage.findUnique({ where: { packageCode: dto.packageCode }, include: { license: true, device: true } });
+    if (!offlinePackage || offlinePackage.status !== OfflinePackageStatus.active) throw new AppError(ErrorCode.LEASE_INVALID, 'offline package invalid');
+    if (offlinePackage.expireAt.getTime() <= Date.now()) throw new AppError(ErrorCode.LEASE_EXPIRED, 'offline package expired');
+    const payload = (dto.payload ?? offlinePackage.payload) as Record<string, unknown>;
+    if (dto.signature !== offlinePackage.signature || dto.signature !== signOfflinePackage(dto.packageCode, payload)) {
+      throw new AppError(ErrorCode.UNAUTHORIZED, 'invalid offline package signature');
+    }
+    return ok({ packageCode: offlinePackage.packageCode, payload, expireAt: offlinePackage.expireAt, licenseStatus: offlinePackage.license.status });
+  }
+}
+
+@UseGuards(RequestSignatureGuard)
 @Controller('/api/v1/device-unbind-requests')
 export class PublicDeviceUnbindController {
   constructor(private readonly prisma: PrismaService) {}
@@ -243,4 +273,9 @@ export class PublicDeviceUnbindController {
     const request = await this.prisma.deviceUnbindRequest.create({ data: { licenseId: device.licenseId, deviceId: device.id, reason: dto.reason } });
     return ok(request, 'created');
   }
+}
+
+function signOfflinePackage(packageCode: string, payload: Record<string, unknown>) {
+  const secret = process.env.LEASE_SECRET ?? 'dev-lease-secret';
+  return createHmac('sha256', secret).update(`${packageCode}.${JSON.stringify(payload)}`).digest('base64url');
 }
