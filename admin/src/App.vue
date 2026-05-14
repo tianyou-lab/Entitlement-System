@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { clearToken, createLicense, createPlan, createProduct, createVersionPolicy, getToken, listActivationLogs, listAuditLogs, listDevices, listHeartbeatLogs, listLicenses, listPlans, listProducts, listVersionPolicies, login, updateDeviceStatus, updateLicenseStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AuditLog, CreateLicenseInput, CreatePlanInput, CreateProductInput, CreateVersionPolicyInput, Device, HeartbeatLog, License, Plan, Product, VersionPolicy } from './types';
+import { clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const token = ref(getToken());
 const loading = ref(false);
@@ -14,12 +14,27 @@ const activationLogs = ref<ActivationLog[]>([]);
 const heartbeatLogs = ref<HeartbeatLog[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
 const versionPolicies = ref<VersionPolicy[]>([]);
+const tenants = ref<Tenant[]>([]);
+const channels = ref<Channel[]>([]);
+const cardKeys = ref<CardKey[]>([]);
+const offlinePackages = ref<OfflinePackage[]>([]);
+const riskEvents = ref<RiskEvent[]>([]);
+const riskSummary = ref<RiskSummary>({ total: 0, open: 0, high: 0, resolved: 0 });
+const unbindRequests = ref<DeviceUnbindRequest[]>([]);
+const protectorAdapters = ref<ProtectorAdapter[]>([]);
 
 const loginForm = reactive({ username: 'admin', password: 'admin123456' });
 const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
+const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', contactEmail: '' });
+const channelForm = reactive<CreateChannelInput>({ tenantId: undefined, channelCode: '', name: '', contact: '', notes: '' });
+const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productId: 0, planId: 0, channelId: undefined, cardKey: '', batchCode: '', expireAt: '' });
+const offlinePackageForm = reactive<CreateOfflinePackageInput>({ tenantId: undefined, licenseId: 0, deviceId: undefined, packageCode: '', expireAt: nextYearIso() });
+const riskEventForm = reactive<CreateRiskEventInput>({ tenantId: undefined, licenseId: undefined, deviceId: undefined, eventType: 'manual_review', severity: 'medium', summary: '' });
+const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 0, deviceId: 0, reason: '' });
+const protectorAdapterForm = reactive<CreateProtectorAdapterInput>({ tenantId: undefined, productId: undefined, adapterCode: '', name: '', notes: '' });
 
 const isAuthenticated = computed(() => Boolean(token.value));
 
@@ -44,7 +59,7 @@ async function submitLogin() {
 async function refreshAll() {
   loading.value = true;
   try {
-    const [nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies] = await Promise.all([
+    const [nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies, nextTenants, nextChannels, nextCardKeys, nextOfflinePackages, nextRiskEvents, nextRiskSummary, nextUnbindRequests, nextProtectorAdapters] = await Promise.all([
       listProducts(),
       listPlans(),
       listLicenses(),
@@ -53,6 +68,14 @@ async function refreshAll() {
       listHeartbeatLogs(),
       listAuditLogs(),
       listVersionPolicies(),
+      listTenants(),
+      listChannels(),
+      listCardKeys(),
+      listOfflinePackages(),
+      listRiskEvents(),
+      getRiskSummary(),
+      listDeviceUnbindRequests(),
+      listProtectorAdapters(),
     ]);
     products.value = nextProducts;
     plans.value = nextPlans;
@@ -62,10 +85,23 @@ async function refreshAll() {
     heartbeatLogs.value = nextHeartbeatLogs;
     auditLogs.value = nextAuditLogs;
     versionPolicies.value = nextVersionPolicies;
+    tenants.value = nextTenants;
+    channels.value = nextChannels;
+    cardKeys.value = nextCardKeys;
+    offlinePackages.value = nextOfflinePackages;
+    riskEvents.value = nextRiskEvents;
+    riskSummary.value = nextRiskSummary;
+    unbindRequests.value = nextUnbindRequests;
+    protectorAdapters.value = nextProtectorAdapters;
     if (!planForm.productId && nextProducts[0]) planForm.productId = nextProducts[0].id;
     if (!licenseForm.productId && nextProducts[0]) licenseForm.productId = nextProducts[0].id;
     if (!licenseForm.planId && nextPlans[0]) licenseForm.planId = nextPlans[0].id;
     if (!versionPolicyForm.productId && nextProducts[0]) versionPolicyForm.productId = nextProducts[0].id;
+    if (!cardKeyForm.productId && nextProducts[0]) cardKeyForm.productId = nextProducts[0].id;
+    if (!cardKeyForm.planId && nextPlans[0]) cardKeyForm.planId = nextPlans[0].id;
+    if (!offlinePackageForm.licenseId && nextLicenses[0]) offlinePackageForm.licenseId = nextLicenses[0].id;
+    if (!unbindRequestForm.licenseId && nextLicenses[0]) unbindRequestForm.licenseId = nextLicenses[0].id;
+    if (!unbindRequestForm.deviceId && nextDevices[0]) unbindRequestForm.deviceId = nextDevices[0].id;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载失败');
   } finally {
@@ -136,6 +172,112 @@ async function toggleForceUpgrade(row: VersionPolicy) {
   });
 }
 
+async function submitTenant() {
+  await withMessage('租户已创建', async () => {
+    await createTenant({ ...tenantForm, contactEmail: tenantForm.contactEmail || undefined });
+    tenantForm.tenantCode = '';
+    tenantForm.name = '';
+    tenantForm.contactEmail = '';
+    await refreshAll();
+  });
+}
+
+async function submitChannel() {
+  await withMessage('渠道已创建', async () => {
+    await createChannel({ ...channelForm, tenantId: optionalId(channelForm.tenantId), contact: channelForm.contact || undefined, notes: channelForm.notes || undefined });
+    channelForm.channelCode = '';
+    channelForm.name = '';
+    channelForm.contact = '';
+    channelForm.notes = '';
+    await refreshAll();
+  });
+}
+
+async function changeChannelStatus(row: Channel, status: Channel['status']) {
+  await withMessage('渠道状态已更新', async () => {
+    await updateChannelStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitCardKey() {
+  await withMessage('卡密已创建', async () => {
+    await createCardKey({ ...cardKeyForm, tenantId: optionalId(cardKeyForm.tenantId), channelId: optionalId(cardKeyForm.channelId), cardKey: cardKeyForm.cardKey || undefined, batchCode: cardKeyForm.batchCode || undefined, expireAt: cardKeyForm.expireAt || undefined });
+    cardKeyForm.cardKey = '';
+    cardKeyForm.batchCode = '';
+    await refreshAll();
+  });
+}
+
+async function changeCardKeyStatus(row: CardKey, status: CardKey['status']) {
+  await withMessage('卡密状态已更新', async () => {
+    await updateCardKeyStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitOfflinePackage() {
+  await withMessage('离线授权包已创建', async () => {
+    await createOfflinePackage({ ...offlinePackageForm, tenantId: optionalId(offlinePackageForm.tenantId), deviceId: optionalId(offlinePackageForm.deviceId), packageCode: offlinePackageForm.packageCode || undefined });
+    offlinePackageForm.packageCode = '';
+    await refreshAll();
+  });
+}
+
+async function changeOfflinePackageStatus(row: OfflinePackage, status: OfflinePackage['status']) {
+  await withMessage('离线授权包状态已更新', async () => {
+    await updateOfflinePackageStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitRiskEvent() {
+  await withMessage('风险事件已创建', async () => {
+    await createRiskEvent({ ...riskEventForm, tenantId: optionalId(riskEventForm.tenantId), licenseId: optionalId(riskEventForm.licenseId), deviceId: optionalId(riskEventForm.deviceId) });
+    riskEventForm.summary = '';
+    await refreshAll();
+  });
+}
+
+async function changeRiskEventStatus(row: RiskEvent, status: RiskEvent['status']) {
+  await withMessage('风险事件状态已更新', async () => {
+    await updateRiskEventStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitUnbindRequest() {
+  await withMessage('解绑申请已创建', async () => {
+    await createDeviceUnbindRequest({ ...unbindRequestForm, reason: unbindRequestForm.reason || undefined });
+    unbindRequestForm.reason = '';
+    await refreshAll();
+  });
+}
+
+async function reviewUnbindRequest(row: DeviceUnbindRequest, status: 'approved' | 'rejected') {
+  await withMessage('解绑申请已处理', async () => {
+    await reviewDeviceUnbindRequest(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitProtectorAdapter() {
+  await withMessage('保护器适配器已创建', async () => {
+    await createProtectorAdapter({ ...protectorAdapterForm, tenantId: optionalId(protectorAdapterForm.tenantId), productId: optionalId(protectorAdapterForm.productId), notes: protectorAdapterForm.notes || undefined });
+    protectorAdapterForm.adapterCode = '';
+    protectorAdapterForm.name = '';
+    protectorAdapterForm.notes = '';
+    await refreshAll();
+  });
+}
+
+async function toggleProtectorAdapter(row: ProtectorAdapter) {
+  await withMessage('保护器适配器状态已更新', async () => {
+    await updateProtectorAdapterStatus(row.id, row.status === 'active' ? 'inactive' : 'active');
+    await refreshAll();
+  });
+}
+
 function logout() {
   clearToken();
   token.value = null;
@@ -150,6 +292,14 @@ function parseJson(value: string) {
   } catch {
     throw new Error('Feature Flags 必须是合法 JSON');
   }
+}
+
+function optionalId(value?: number) {
+  return value && value > 0 ? value : undefined;
+}
+
+function nextYearIso() {
+  return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 async function withMessage(message: string, action: () => Promise<void>) {
@@ -367,6 +517,242 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column label="操作" width="160">
             <template #default="{ row }">
               <el-button size="small" @click="toggleForceUpgrade(row)">{{ row.forceUpgrade ? '关闭强制' : '开启强制' }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="风控面板">
+        <el-row :gutter="16">
+          <el-col :span="6"><el-card><strong>风险总数</strong><p>{{ riskSummary.total }}</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>未处理</strong><p>{{ riskSummary.open }}</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>高危</strong><p>{{ riskSummary.high }}</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>已解决</strong><p>{{ riskSummary.resolved }}</p></el-card></el-col>
+        </el-row>
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>创建风险事件</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitRiskEvent">
+            <el-form-item label="租户">
+              <el-select v-model="riskEventForm.tenantId" clearable style="width: 100%">
+                <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="License">
+              <el-select v-model="riskEventForm.licenseId" clearable style="width: 100%">
+                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="设备">
+              <el-select v-model="riskEventForm.deviceId" clearable style="width: 100%">
+                <el-option v-for="device in devices" :key="device.id" :label="device.deviceCode" :value="device.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="事件类型">
+              <el-input v-model="riskEventForm.eventType" />
+            </el-form-item>
+            <el-form-item label="级别">
+              <el-select v-model="riskEventForm.severity" style="width: 100%">
+                <el-option label="低" value="low" />
+                <el-option label="中" value="medium" />
+                <el-option label="高" value="high" />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="full" label="摘要">
+              <el-input v-model="riskEventForm.summary" />
+            </el-form-item>
+            <el-button type="primary" native-type="submit">创建风险事件</el-button>
+          </el-form>
+        </div>
+        <el-table :data="riskEvents" style="margin-top: 18px">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="eventType" label="类型" />
+          <el-table-column prop="severity" label="级别" width="100" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="summary" label="摘要" />
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column label="操作" width="210">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeRiskEventStatus(row, 'resolved')">解决</el-button>
+              <el-button size="small" @click="changeRiskEventStatus(row, 'ignored')">忽略</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="渠道与卡密">
+        <div class="table-card">
+          <div class="toolbar"><strong>创建租户</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitTenant">
+            <el-form-item label="租户编码"><el-input v-model="tenantForm.tenantCode" placeholder="tenant_a" /></el-form-item>
+            <el-form-item label="名称"><el-input v-model="tenantForm.name" /></el-form-item>
+            <el-form-item label="联系邮箱"><el-input v-model="tenantForm.contactEmail" /></el-form-item>
+            <el-button type="primary" native-type="submit">创建租户</el-button>
+          </el-form>
+        </div>
+        <el-table :data="tenants" style="margin-top: 18px">
+          <el-table-column prop="tenantCode" label="租户编码" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column prop="status" label="状态" width="120" />
+        </el-table>
+
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>创建渠道/代理商</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitChannel">
+            <el-form-item label="租户">
+              <el-select v-model="channelForm.tenantId" clearable style="width: 100%">
+                <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="渠道编码"><el-input v-model="channelForm.channelCode" placeholder="agent_a" /></el-form-item>
+            <el-form-item label="名称"><el-input v-model="channelForm.name" /></el-form-item>
+            <el-form-item label="联系人"><el-input v-model="channelForm.contact" /></el-form-item>
+            <el-form-item class="full" label="备注"><el-input v-model="channelForm.notes" /></el-form-item>
+            <el-button type="primary" native-type="submit">创建渠道</el-button>
+          </el-form>
+        </div>
+        <el-table :data="channels" style="margin-top: 18px">
+          <el-table-column prop="channelCode" label="渠道编码" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column prop="tenant.name" label="租户" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="操作" width="170">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeChannelStatus(row, row.status === 'active' ? 'disabled' : 'active')">{{ row.status === 'active' ? '停用' : '启用' }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>生成卡密</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitCardKey">
+            <el-form-item label="产品">
+              <el-select v-model="cardKeyForm.productId" style="width: 100%">
+                <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="套餐">
+              <el-select v-model="cardKeyForm.planId" style="width: 100%">
+                <el-option v-for="plan in plans" :key="plan.id" :label="plan.name" :value="plan.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="渠道">
+              <el-select v-model="cardKeyForm.channelId" clearable style="width: 100%">
+                <el-option v-for="channel in channels" :key="channel.id" :label="channel.name" :value="channel.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="卡密（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
+            <el-form-item label="批次"><el-input v-model="cardKeyForm.batchCode" /></el-form-item>
+            <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
+            <el-button type="primary" native-type="submit">生成卡密</el-button>
+          </el-form>
+        </div>
+        <el-table :data="cardKeys" style="margin-top: 18px">
+          <el-table-column prop="cardKey" label="卡密" min-width="210" />
+          <el-table-column prop="product.productCode" label="产品" />
+          <el-table-column prop="plan.planCode" label="套餐" />
+          <el-table-column prop="channel.name" label="渠道" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="操作" width="220">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeCardKeyStatus(row, 'issued')">发放</el-button>
+              <el-button size="small" type="danger" @click="changeCardKeyStatus(row, 'disabled')">禁用</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="离线与解绑">
+        <div class="table-card">
+          <div class="toolbar"><strong>创建离线授权包</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitOfflinePackage">
+            <el-form-item label="License">
+              <el-select v-model="offlinePackageForm.licenseId" style="width: 100%">
+                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="设备（可选）">
+              <el-select v-model="offlinePackageForm.deviceId" clearable style="width: 100%">
+                <el-option v-for="device in devices" :key="device.id" :label="device.deviceCode" :value="device.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="包编码（留空自动生成）"><el-input v-model="offlinePackageForm.packageCode" /></el-form-item>
+            <el-form-item label="到期时间"><el-input v-model="offlinePackageForm.expireAt" /></el-form-item>
+            <el-button type="primary" native-type="submit">创建离线包</el-button>
+          </el-form>
+        </div>
+        <el-table :data="offlinePackages" style="margin-top: 18px">
+          <el-table-column prop="packageCode" label="包编码" min-width="210" />
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="device.deviceCode" label="设备" />
+          <el-table-column prop="expireAt" label="到期时间" min-width="190" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="操作" width="160">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeOfflinePackageStatus(row, row.status === 'active' ? 'revoked' : 'active')">{{ row.status === 'active' ? '撤销' : '恢复' }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>自助解绑申请</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitUnbindRequest">
+            <el-form-item label="License">
+              <el-select v-model="unbindRequestForm.licenseId" style="width: 100%">
+                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="设备">
+              <el-select v-model="unbindRequestForm.deviceId" style="width: 100%">
+                <el-option v-for="device in devices" :key="device.id" :label="device.deviceCode" :value="device.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="full" label="原因"><el-input v-model="unbindRequestForm.reason" /></el-form-item>
+            <el-button type="primary" native-type="submit">创建申请</el-button>
+          </el-form>
+        </div>
+        <el-table :data="unbindRequests" style="margin-top: 18px">
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="device.deviceCode" label="设备" />
+          <el-table-column prop="reason" label="原因" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="操作" width="180">
+            <template #default="{ row }">
+              <el-button size="small" @click="reviewUnbindRequest(row, 'approved')">通过</el-button>
+              <el-button size="small" type="danger" @click="reviewUnbindRequest(row, 'rejected')">拒绝</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="保护器适配">
+        <div class="table-card">
+          <div class="toolbar"><strong>创建保护器适配器</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitProtectorAdapter">
+            <el-form-item label="租户">
+              <el-select v-model="protectorAdapterForm.tenantId" clearable style="width: 100%">
+                <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="产品">
+              <el-select v-model="protectorAdapterForm.productId" clearable style="width: 100%">
+                <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="适配器编码"><el-input v-model="protectorAdapterForm.adapterCode" placeholder="protector_default" /></el-form-item>
+            <el-form-item label="名称"><el-input v-model="protectorAdapterForm.name" /></el-form-item>
+            <el-form-item class="full" label="备注"><el-input v-model="protectorAdapterForm.notes" /></el-form-item>
+            <el-button type="primary" native-type="submit">创建适配器</el-button>
+          </el-form>
+        </div>
+        <el-table :data="protectorAdapters" style="margin-top: 18px">
+          <el-table-column prop="adapterCode" label="编码" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column prop="product.productCode" label="产品" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="notes" label="备注" />
+          <el-table-column label="操作" width="160">
+            <template #default="{ row }">
+              <el-button size="small" @click="toggleProtectorAdapter(row)">{{ row.status === 'active' ? '停用' : '启用' }}</el-button>
             </template>
           </el-table-column>
         </el-table>

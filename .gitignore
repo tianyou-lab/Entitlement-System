@@ -7,3 +7,5 @@ coverage/
 .vite/
 /package-lock.json
 sdk-cpp/build/
+sdk-dotnet/**/bin/
+sdk-dotnet/**/obj/

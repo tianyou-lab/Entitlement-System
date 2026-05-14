@@ -7,7 +7,9 @@
 - Electron SDK 与 Demo
 - License UI
 - C++ SDK Demo
+- .NET SDK Demo
 - 请求签名、nonce 防重放、本地缓存加密、强制升级
+- P2 风控面板、渠道/代理商、卡密、离线授权包、自助解绑、多租户、保护器适配器
 
 ## 验收命令
 
@@ -29,6 +31,7 @@ npm --prefix demo-electron run lint
 npm --prefix demo-electron run test
 npm --prefix demo-electron run build
 make -C sdk-cpp
+# 如本机已安装 .NET SDK：dotnet build sdk-dotnet/demo/Entitlement.Sdk.Demo.csproj
 ```
 
 ## 业务链路验收
@@ -47,9 +50,18 @@ make -C sdk-cpp
 | 10 | 到期 License 验证 | 返回 `LICENSE_EXPIRED` | 单元测试已覆盖 |
 | 11 | 强制升级策略 | 返回 `FORCE_UPGRADE_REQUIRED` | 自动化 e2e 已通过 |
 | 12 | C++ Demo 接入 | activate / verify / heartbeat / deactivate 成功 | 临时数据库联调已通过 |
+| 13 | 风控面板 | 可创建、查看、处理风险事件并统计风险摘要 | Admin UI build 通过，接口已编译 |
+| 14 | 渠道/代理商管理 | 可创建渠道并启停渠道 | Admin UI build 通过，接口已编译 |
+| 15 | 卡密管理 | 可生成卡密并维护发放/禁用状态 | Admin UI build 通过，接口已编译 |
+| 16 | 离线授权包 | 可生成、撤销、恢复离线授权包 | Admin UI build 通过，接口已编译 |
+| 17 | 自助设备解绑 | 客户端可提交申请，后台可通过/拒绝 | Admin UI build 通过，接口已编译 |
+| 18 | 多租户 | 可创建租户，并关联产品、渠道、卡密、风险、适配器 | Prisma schema 校验通过 |
+| 19 | .NET SDK | activate / verify / heartbeat / deactivate / version policy 客户端已提供 | 源码已完成，待 .NET SDK 环境构建 |
+| 20 | 保护器适配器 | 可登记适配器并启停 | Admin UI build 通过，接口已编译 |
 
 ## 风险与限制
 
 - Headless 环境无法实际打开 Electron GUI，需要在桌面环境补一次人工验收。
+- 当前环境未安装 .NET SDK，`sdk-dotnet` 需要在具备 .NET 8 SDK 的环境补一次 `dotnet build`。
 - 生产部署前必须轮换所有示例密钥和默认管理员密码。
 - 如启用请求签名，所有客户端必须配置同一 `PUBLIC_API_SIGNING_SECRET`。

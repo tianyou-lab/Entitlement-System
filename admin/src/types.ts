@@ -106,6 +106,100 @@ export interface VersionPolicy {
   product?: Product;
 }
 
+export interface Tenant {
+  id: number;
+  tenantCode: string;
+  name: string;
+  status: 'active' | 'suspended';
+  contactEmail?: string;
+}
+
+export interface Channel {
+  id: number;
+  tenantId?: number;
+  channelCode: string;
+  name: string;
+  status: 'active' | 'disabled';
+  contact?: string;
+  notes?: string;
+  tenant?: Tenant;
+}
+
+export interface CardKey {
+  id: number;
+  tenantId?: number;
+  productId: number;
+  planId: number;
+  channelId?: number;
+  licenseId?: number;
+  cardKey: string;
+  batchCode?: string;
+  status: 'unused' | 'issued' | 'redeemed' | 'disabled';
+  expireAt?: string;
+  product?: Product;
+  plan?: Plan;
+  channel?: Channel;
+  license?: License;
+}
+
+export interface OfflinePackage {
+  id: number;
+  tenantId?: number;
+  licenseId: number;
+  deviceId?: number;
+  packageCode: string;
+  signature: string;
+  expireAt: string;
+  status: 'active' | 'revoked';
+  license?: License;
+  device?: Device;
+}
+
+export interface RiskEvent {
+  id: number;
+  tenantId?: number;
+  licenseId?: number;
+  deviceId?: number;
+  eventType: string;
+  severity: 'low' | 'medium' | 'high';
+  status: 'open' | 'resolved' | 'ignored';
+  summary: string;
+  count: number;
+  createdAt: string;
+  license?: License;
+  device?: Device;
+}
+
+export interface RiskSummary {
+  total: number;
+  open: number;
+  high: number;
+  resolved: number;
+}
+
+export interface DeviceUnbindRequest {
+  id: number;
+  licenseId: number;
+  deviceId: number;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  license?: License;
+  device?: Device;
+}
+
+export interface ProtectorAdapter {
+  id: number;
+  tenantId?: number;
+  productId?: number;
+  adapterCode: string;
+  name: string;
+  status: 'active' | 'inactive';
+  notes?: string;
+  tenant?: Tenant;
+  product?: Product;
+}
+
 export interface CreateProductInput {
   productCode: string;
   name: string;
@@ -140,4 +234,59 @@ export interface CreateVersionPolicyInput {
   forceUpgrade?: boolean;
   downloadUrl?: string;
   notice?: string;
+}
+
+export interface CreateTenantInput {
+  tenantCode: string;
+  name: string;
+  contactEmail?: string;
+}
+
+export interface CreateChannelInput {
+  tenantId?: number;
+  channelCode: string;
+  name: string;
+  contact?: string;
+  notes?: string;
+}
+
+export interface CreateCardKeyInput {
+  tenantId?: number;
+  productId: number;
+  planId: number;
+  channelId?: number;
+  cardKey?: string;
+  batchCode?: string;
+  expireAt?: string;
+}
+
+export interface CreateOfflinePackageInput {
+  tenantId?: number;
+  licenseId: number;
+  deviceId?: number;
+  packageCode?: string;
+  expireAt: string;
+}
+
+export interface CreateRiskEventInput {
+  tenantId?: number;
+  licenseId?: number;
+  deviceId?: number;
+  eventType: string;
+  severity?: RiskEvent['severity'];
+  summary: string;
+}
+
+export interface CreateDeviceUnbindRequestInput {
+  licenseId: number;
+  deviceId: number;
+  reason?: string;
+}
+
+export interface CreateProtectorAdapterInput {
+  tenantId?: number;
+  productId?: number;
+  adapterCode: string;
+  name: string;
+  notes?: string;
 }

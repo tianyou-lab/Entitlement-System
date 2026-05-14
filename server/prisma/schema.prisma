@@ -42,17 +42,66 @@ enum AdminStatus {
   disabled
 }
 
+enum TenantStatus {
+  active
+  suspended
+}
+
+enum ChannelStatus {
+  active
+  disabled
+}
+
+enum CardKeyStatus {
+  unused
+  issued
+  redeemed
+  disabled
+}
+
+enum OfflinePackageStatus {
+  active
+  revoked
+}
+
+enum RiskSeverity {
+  low
+  medium
+  high
+}
+
+enum RiskEventStatus {
+  open
+  resolved
+  ignored
+}
+
+enum DeviceUnbindStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ProtectorAdapterStatus {
+  active
+  inactive
+}
+
 model Product {
-  id              Int             @id @default(autoincrement())
-  productCode     String          @unique @map("product_code") @db.VarChar(64)
-  name            String          @db.VarChar(128)
-  status          ProductStatus   @default(active)
-  description     String?
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  plans           Plan[]
-  licenses        License[]
-  versionPolicies VersionPolicy[]
+  id                Int                @id @default(autoincrement())
+  tenantId          Int?               @map("tenant_id")
+  productCode       String             @unique @map("product_code") @db.VarChar(64)
+  name              String             @db.VarChar(128)
+  status            ProductStatus      @default(active)
+  description       String?
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id])
+  plans             Plan[]
+  licenses          License[]
+  versionPolicies   VersionPolicy[]
+  cardKeys          CardKey[]
+  protectorAdapters ProtectorAdapter[]
 
   @@map("products")
 }
@@ -72,60 +121,69 @@ model Plan {
   updatedAt      DateTime   @updatedAt @map("updated_at")
   product        Product    @relation(fields: [productId], references: [id])
   licenses       License[]
+  cardKeys       CardKey[]
 
   @@unique([productId, planCode])
   @@map("plans")
 }
 
 model License {
-  id                     Int           @id @default(autoincrement())
-  licenseKey             String        @unique @map("license_key") @db.VarChar(128)
-  productId              Int           @map("product_id")
-  planId                 Int           @map("plan_id")
-  status                 LicenseStatus @default(active)
-  customerId             Int?          @map("customer_id")
-  channelId              Int?          @map("channel_id")
-  issuedAt               DateTime      @default(now()) @map("issued_at")
-  activateAt             DateTime?     @map("activate_at")
-  expireAt               DateTime?     @map("expire_at")
-  maxDevicesOverride     Int?          @map("max_devices_override")
-  maxConcurrencyOverride Int?          @map("max_concurrency_override")
-  featureFlagsOverride   Json?         @map("feature_flags_override")
+  id                     Int                   @id @default(autoincrement())
+  licenseKey             String                @unique @map("license_key") @db.VarChar(128)
+  productId              Int                   @map("product_id")
+  planId                 Int                   @map("plan_id")
+  status                 LicenseStatus         @default(active)
+  customerId             Int?                  @map("customer_id")
+  channelId              Int?                  @map("channel_id")
+  issuedAt               DateTime              @default(now()) @map("issued_at")
+  activateAt             DateTime?             @map("activate_at")
+  expireAt               DateTime?             @map("expire_at")
+  maxDevicesOverride     Int?                  @map("max_devices_override")
+  maxConcurrencyOverride Int?                  @map("max_concurrency_override")
+  featureFlagsOverride   Json?                 @map("feature_flags_override")
   notes                  String?
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
-  product                Product       @relation(fields: [productId], references: [id])
-  plan                   Plan          @relation(fields: [planId], references: [id])
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+  product                Product               @relation(fields: [productId], references: [id])
+  plan                   Plan                  @relation(fields: [planId], references: [id])
   devices                Device[]
   leases                 Lease[]
   activationLogs         ActivationLog[]
   heartbeatLogs          HeartbeatLog[]
+  channel                Channel?              @relation(fields: [channelId], references: [id])
+  cardKeys               CardKey[]
+  offlinePackages        OfflinePackage[]
+  riskEvents             RiskEvent[]
+  unbindRequests         DeviceUnbindRequest[]
 
   @@index([productId, status])
   @@map("licenses")
 }
 
 model Device {
-  id              Int          @id @default(autoincrement())
-  licenseId       Int          @map("license_id")
-  deviceCode      String       @unique @map("device_code") @db.VarChar(64)
-  fingerprintHash String       @map("fingerprint_hash") @db.VarChar(128)
-  deviceName      String       @map("device_name") @db.VarChar(128)
-  osType          String       @map("os_type") @db.VarChar(32)
-  osVersion       String       @map("os_version") @db.VarChar(64)
-  appVersion      String       @map("app_version") @db.VarChar(64)
-  hardwareSummary Json         @default("{}") @map("hardware_summary")
-  status          DeviceStatus @default(active)
-  firstActivateAt DateTime     @default(now()) @map("first_activate_at")
-  lastSeenAt      DateTime     @default(now()) @map("last_seen_at")
-  lastIp          String?      @map("last_ip") @db.VarChar(64)
-  unbindCount     Int          @default(0) @map("unbind_count")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  license         License      @relation(fields: [licenseId], references: [id])
+  id              Int                   @id @default(autoincrement())
+  licenseId       Int                   @map("license_id")
+  deviceCode      String                @unique @map("device_code") @db.VarChar(64)
+  fingerprintHash String                @map("fingerprint_hash") @db.VarChar(128)
+  deviceName      String                @map("device_name") @db.VarChar(128)
+  osType          String                @map("os_type") @db.VarChar(32)
+  osVersion       String                @map("os_version") @db.VarChar(64)
+  appVersion      String                @map("app_version") @db.VarChar(64)
+  hardwareSummary Json                  @default("{}") @map("hardware_summary")
+  status          DeviceStatus          @default(active)
+  firstActivateAt DateTime              @default(now()) @map("first_activate_at")
+  lastSeenAt      DateTime              @default(now()) @map("last_seen_at")
+  lastIp          String?               @map("last_ip") @db.VarChar(64)
+  unbindCount     Int                   @default(0) @map("unbind_count")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  license         License               @relation(fields: [licenseId], references: [id])
   leases          Lease[]
   activationLogs  ActivationLog[]
   heartbeatLogs   HeartbeatLog[]
+  offlinePackages OfflinePackage[]
+  riskEvents      RiskEvent[]
+  unbindRequests  DeviceUnbindRequest[]
 
   @@index([licenseId, status])
   @@index([lastSeenAt])
@@ -133,20 +191,20 @@ model Device {
 }
 
 model Lease {
-  id            Int         @id @default(autoincrement())
-  licenseId     Int         @map("license_id")
-  deviceId      Int         @map("device_id")
-  leaseTokenId  String      @unique @map("lease_token_id") @db.VarChar(64)
-  issuedAt      DateTime    @default(now()) @map("issued_at")
-  expireAt      DateTime    @map("expire_at")
-  nonce         String      @db.VarChar(64)
-  status        LeaseStatus @default(active)
-  clientVersion String      @map("client_version") @db.VarChar(64)
+  id            Int            @id @default(autoincrement())
+  licenseId     Int            @map("license_id")
+  deviceId      Int            @map("device_id")
+  leaseTokenId  String         @unique @map("lease_token_id") @db.VarChar(64)
+  issuedAt      DateTime       @default(now()) @map("issued_at")
+  expireAt      DateTime       @map("expire_at")
+  nonce         String         @db.VarChar(64)
+  status        LeaseStatus    @default(active)
+  clientVersion String         @map("client_version") @db.VarChar(64)
   signature     String
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  license       License     @relation(fields: [licenseId], references: [id])
-  device        Device      @relation(fields: [deviceId], references: [id])
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  license       License        @relation(fields: [licenseId], references: [id])
+  device        Device         @relation(fields: [deviceId], references: [id])
   heartbeatLogs HeartbeatLog[]
 
   @@index([licenseId, deviceId])
@@ -223,14 +281,155 @@ model VersionPolicy {
   @@map("version_policies")
 }
 
+model Tenant {
+  id                Int                @id @default(autoincrement())
+  tenantCode        String             @unique @map("tenant_code") @db.VarChar(64)
+  name              String             @db.VarChar(128)
+  status            TenantStatus       @default(active)
+  contactEmail      String?            @map("contact_email") @db.VarChar(128)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  products          Product[]
+  admins            Admin[]
+  channels          Channel[]
+  cardKeys          CardKey[]
+  offlinePackages   OfflinePackage[]
+  riskEvents        RiskEvent[]
+  protectorAdapters ProtectorAdapter[]
+
+  @@map("tenants")
+}
+
+model Channel {
+  id          Int           @id @default(autoincrement())
+  tenantId    Int?          @map("tenant_id")
+  channelCode String        @unique @map("channel_code") @db.VarChar(64)
+  name        String        @db.VarChar(128)
+  status      ChannelStatus @default(active)
+  contact     String?       @db.VarChar(128)
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  tenant      Tenant?       @relation(fields: [tenantId], references: [id])
+  licenses    License[]
+  cardKeys    CardKey[]
+
+  @@map("channels")
+}
+
+model CardKey {
+  id         Int           @id @default(autoincrement())
+  tenantId   Int?          @map("tenant_id")
+  productId  Int           @map("product_id")
+  planId     Int           @map("plan_id")
+  channelId  Int?          @map("channel_id")
+  licenseId  Int?          @map("license_id")
+  cardKey    String        @unique @map("card_key") @db.VarChar(128)
+  batchCode  String?       @map("batch_code") @db.VarChar(64)
+  status     CardKeyStatus @default(unused)
+  expireAt   DateTime?     @map("expire_at")
+  redeemedAt DateTime?     @map("redeemed_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  tenant     Tenant?       @relation(fields: [tenantId], references: [id])
+  product    Product       @relation(fields: [productId], references: [id])
+  plan       Plan          @relation(fields: [planId], references: [id])
+  channel    Channel?      @relation(fields: [channelId], references: [id])
+  license    License?      @relation(fields: [licenseId], references: [id])
+
+  @@index([productId, status])
+  @@index([batchCode])
+  @@map("card_keys")
+}
+
+model OfflinePackage {
+  id          Int                  @id @default(autoincrement())
+  tenantId    Int?                 @map("tenant_id")
+  licenseId   Int                  @map("license_id")
+  deviceId    Int?                 @map("device_id")
+  packageCode String               @unique @map("package_code") @db.VarChar(128)
+  payload     Json                 @default("{}")
+  signature   String
+  expireAt    DateTime             @map("expire_at")
+  status      OfflinePackageStatus @default(active)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  tenant      Tenant?              @relation(fields: [tenantId], references: [id])
+  license     License              @relation(fields: [licenseId], references: [id])
+  device      Device?              @relation(fields: [deviceId], references: [id])
+
+  @@index([licenseId, status])
+  @@map("offline_packages")
+}
+
+model RiskEvent {
+  id          Int             @id @default(autoincrement())
+  tenantId    Int?            @map("tenant_id")
+  licenseId   Int?            @map("license_id")
+  deviceId    Int?            @map("device_id")
+  eventType   String          @map("event_type") @db.VarChar(64)
+  severity    RiskSeverity    @default(low)
+  status      RiskEventStatus @default(open)
+  summary     String          @db.VarChar(255)
+  details     Json            @default("{}")
+  count       Int             @default(1)
+  firstSeenAt DateTime        @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime        @default(now()) @map("last_seen_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  tenant      Tenant?         @relation(fields: [tenantId], references: [id])
+  license     License?        @relation(fields: [licenseId], references: [id])
+  device      Device?         @relation(fields: [deviceId], references: [id])
+
+  @@index([severity, status])
+  @@index([licenseId, createdAt])
+  @@map("risk_events")
+}
+
+model DeviceUnbindRequest {
+  id        Int                @id @default(autoincrement())
+  licenseId Int                @map("license_id")
+  deviceId  Int                @map("device_id")
+  reason    String?
+  status    DeviceUnbindStatus @default(pending)
+  handledBy Int?               @map("handled_by")
+  handledAt DateTime?          @map("handled_at")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  license   License            @relation(fields: [licenseId], references: [id])
+  device    Device             @relation(fields: [deviceId], references: [id])
+
+  @@index([status, createdAt])
+  @@map("device_unbind_requests")
+}
+
+model ProtectorAdapter {
+  id          Int                    @id @default(autoincrement())
+  tenantId    Int?                   @map("tenant_id")
+  productId   Int?                   @map("product_id")
+  adapterCode String                 @unique @map("adapter_code") @db.VarChar(64)
+  name        String                 @db.VarChar(128)
+  status      ProtectorAdapterStatus @default(active)
+  config      Json                   @default("{}")
+  notes       String?
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  tenant      Tenant?                @relation(fields: [tenantId], references: [id])
+  product     Product?               @relation(fields: [productId], references: [id])
+
+  @@map("protector_adapters")
+}
+
 model Admin {
   id           Int         @id @default(autoincrement())
   username     String      @unique @db.VarChar(64)
   passwordHash String      @map("password_hash") @db.VarChar(255)
   roleCode     String      @map("role_code") @db.VarChar(64)
   status       AdminStatus @default(active)
+  tenantId     Int?        @map("tenant_id")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
+  tenant       Tenant?     @relation(fields: [tenantId], references: [id])
 
   @@map("admins")
 }

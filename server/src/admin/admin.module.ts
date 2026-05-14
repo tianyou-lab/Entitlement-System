@@ -8,6 +8,7 @@ import { DevicesController } from './devices/devices.controller';
 import { LicensesController } from './licenses/licenses.controller';
 import { LogsController } from './logs/logs.controller';
 import { PlansController } from './plans/plans.controller';
+import { P2AdminController, PublicDeviceUnbindController } from './p2/p2.controller';
 import { ProductsController } from './products/products.controller';
 import { VersionPoliciesController } from './version-policies/version-policies.controller';
 
@@ -18,7 +19,7 @@ import { VersionPoliciesController } from './version-policies/version-policies.c
       signOptions: { expiresIn: '8h' },
     }),
   ],
-  controllers: [AuthController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, VersionPoliciesController],
+  controllers: [AuthController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, VersionPoliciesController, P2AdminController, PublicDeviceUnbindController],
   providers: [AuthService, AdminAuthGuard, AuditService],
 })
 export class AdminModule {}
