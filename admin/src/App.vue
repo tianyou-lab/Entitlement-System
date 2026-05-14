@@ -1,8 +1,34 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Grid, Key, Link, Monitor, Refresh, Setting, SwitchButton, Tickets, TrendCharts } from '@element-plus/icons-vue';
 import { changePassword, clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+
+const navItems = [
+  { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
+  { id: 'products', label: '产品管理', summary: '维护产品编码、名称与启停状态', icon: Box },
+  { id: 'plans', label: '套餐配置', summary: '配置授权周期、设备数和功能开关', icon: Grid },
+  { id: 'licenses', label: '授权卡密', summary: '生成、复制和批量封禁授权码', icon: Key },
+  { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
+  { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
+  { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
+  { id: 'channels', label: '渠道与卡密', summary: '管理租户、渠道和批次卡密库存', icon: Tickets },
+  { id: 'offline', label: '离线与解绑', summary: '创建离线授权包并审核解绑申请', icon: Connection },
+  { id: 'protectors', label: '保护器适配', summary: '维护加壳和保护器适配器配置', icon: Cpu },
+  { id: 'sdk', label: 'SDK 接入', summary: '下载客户端 SDK 并查看 Electron、C++、.NET 接入步骤', icon: Download },
+  { id: 'logs', label: '运行日志', summary: '审计激活、心跳和后台操作记录', icon: Document },
+] as const;
+
+type AdminSection = typeof navItems[number]['id'];
+const githubBaseUrl = 'https://github.com/tianyou-lab/Entitlement-System';
+const sdkResources = [
+  { name: '完整源码 ZIP', description: '包含 Server、Admin、License UI、Electron/C++/.NET SDK 和 Demo', url: `${githubBaseUrl}/archive/refs/heads/main.zip`, action: '下载 ZIP' },
+  { name: 'Electron SDK', description: 'TypeScript SDK，支持激活、验证、心跳、本地加密缓存和请求签名', url: `${githubBaseUrl}/tree/main/sdk-electron`, action: '查看源码' },
+  { name: 'C++ SDK Demo', description: 'C++ 客户端接入示例，适合原生桌面软件集成', url: `${githubBaseUrl}/tree/main/sdk-cpp`, action: '查看源码' },
+  { name: '.NET SDK', description: '.NET 8 客户端与 Demo，支持公共 API HMAC 请求签名', url: `${githubBaseUrl}/tree/main/sdk-dotnet`, action: '查看源码' },
+  { name: 'License UI', description: '可嵌入授权激活界面的前端组件工程', url: `${githubBaseUrl}/tree/main/license-ui`, action: '查看源码' },
+] as const;
 
 const token = ref(getToken());
 const loading = ref(false);
@@ -26,6 +52,8 @@ const protectorAdapters = ref<ProtectorAdapter[]>([]);
 const selectedLicenses = ref<License[]>([]);
 const selectedCardKeys = ref<CardKey[]>([]);
 const darkMode = ref(false);
+const activeSection = ref<AdminSection>('console');
+const activeLogType = ref<'activation' | 'heartbeat' | 'audit'>('activation');
 
 const loginForm = reactive({ username: 'admin', password: '' });
 const passwordForm = reactive({ oldPassword: '', newPassword: '' });
@@ -47,6 +75,7 @@ const disabledLicenses = computed(() => licenses.value.filter((license) => licen
 const activeCardKeys = computed(() => cardKeys.value.filter((cardKey) => cardKey.status === 'unused' || cardKey.status === 'issued').length);
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'active').length);
 const openRisks = computed(() => riskSummary.value.open);
+const activeNavItem = computed(() => navItems.find((item) => item.id === activeSection.value) ?? navItems[0]);
 
 function statusText(status?: string | boolean) {
   if (typeof status === 'boolean') return status ? '是' : '否';
@@ -476,16 +505,23 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <span>Entitlement Console</span>
         </div>
       </div>
-      <div class="sidebar-menu">
-        <span>产品与套餐</span>
-        <span>授权码管理</span>
-        <span>渠道卡密</span>
-        <span>设备风控</span>
-        <span>日志审计</span>
+      <div class="sidebar-menu" aria-label="后台功能导航">
+        <button
+          v-for="item in navItems"
+          :key="item.id"
+          class="sidebar-nav-item"
+          :class="{ active: activeSection === item.id }"
+          type="button"
+          @click="activeSection = item.id"
+        >
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </button>
       </div>
     </aside>
 
     <section class="workspace">
+      <template v-if="activeSection === 'console'">
       <header class="header">
         <div>
           <p class="eyebrow">运营控制台</p>
@@ -493,12 +529,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <p>统一管理授权码、卡密发放、设备绑定、版本策略和异常风险。</p>
         </div>
         <div class="header-actions">
-          <el-button circle title="消息中心">信</el-button>
-          <el-button circle title="系统设置">设</el-button>
+          <el-button circle :icon="Bell" title="消息中心" />
+          <el-button circle :icon="Setting" title="系统设置" />
           <el-switch v-model="darkMode" active-text="深色" inactive-text="浅色" />
           <div class="avatar">管</div>
-          <el-button @click="refreshAll">刷新数据</el-button>
-          <el-button type="danger" plain @click="logout">退出登录</el-button>
+          <el-button :icon="Refresh" @click="refreshAll">刷新数据</el-button>
+          <el-button :icon="SwitchButton" type="danger" plain @click="logout">退出登录</el-button>
         </div>
       </header>
 
@@ -509,8 +545,68 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <article class="metric-card danger"><span>待处理风险</span><strong>{{ openRisks }}</strong><small>高危 {{ riskSummary.high }} / 停用授权 {{ disabledLicenses }}</small></article>
       </section>
 
-      <el-tabs class="console-tabs" type="border-card" v-loading="loading">
-      <el-tab-pane label="产品管理">
+      <section class="console-panel console-home" v-loading="loading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">控制台速览</p>
+            <h2>运营概览</h2>
+            <p>集中查看关键授权资产、渠道库存、设备绑定和风险处理压力。</p>
+          </div>
+        </div>
+        <div class="overview-grid">
+          <article>
+            <strong>{{ products.length }}</strong>
+            <span>授权产品</span>
+          </article>
+          <article>
+            <strong>{{ plans.length }}</strong>
+            <span>套餐配置</span>
+          </article>
+          <article>
+            <strong>{{ licenses.length }}</strong>
+            <span>授权码总量</span>
+          </article>
+          <article>
+            <strong>{{ cardKeys.length }}</strong>
+            <span>卡密总量</span>
+          </article>
+          <article>
+            <strong>{{ tenants.length }}</strong>
+            <span>租户</span>
+          </article>
+          <article>
+            <strong>{{ channels.length }}</strong>
+            <span>渠道</span>
+          </article>
+        </div>
+      </section>
+      </template>
+
+      <template v-else>
+      <header class="module-header">
+        <div>
+          <p class="eyebrow">模块工作台</p>
+          <h1>{{ activeNavItem.label }}</h1>
+          <p>{{ activeNavItem.summary }}</p>
+        </div>
+        <div class="header-actions">
+          <el-switch v-model="darkMode" active-text="深色" inactive-text="浅色" />
+          <div class="avatar">管</div>
+          <el-button :icon="Refresh" @click="refreshAll">刷新数据</el-button>
+          <el-button :icon="SwitchButton" type="danger" plain @click="logout">退出登录</el-button>
+        </div>
+      </header>
+
+      <section class="console-panel module-panel" v-loading="loading">
+      <div class="section-heading module-section-heading">
+        <div>
+          <p class="eyebrow">当前切面</p>
+          <h2>{{ activeNavItem.label }}</h2>
+          <p>{{ activeNavItem.summary }}</p>
+        </div>
+      </div>
+
+      <section v-if="activeSection === 'products'" class="section-page">
         <div class="table-card">
           <div class="toolbar">
             <div><strong>创建授权产品</strong><span class="muted">产品编码必须与客户端 productCode 一致</span></div>
@@ -536,9 +632,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="套餐配置">
+      <section v-if="activeSection === 'plans'" class="section-page">
         <div class="table-card">
           <div class="toolbar"><strong>创建套餐</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitPlan">
@@ -581,9 +677,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="授权码">
+      <section v-if="activeSection === 'licenses'" class="section-page">
         <div class="table-card">
           <div class="toolbar">
             <div><strong>生成授权码</strong><span class="muted">支持自动生成、设备数覆盖和功能开关覆盖</span></div>
@@ -640,9 +736,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="设备绑定">
+      <section v-if="activeSection === 'devices'" class="section-page">
         <el-table :data="devices">
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="deviceCode" label="设备码" min-width="180" />
@@ -661,9 +757,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="版本策略">
+      <section v-if="activeSection === 'versions'" class="section-page">
         <div class="table-card">
           <div class="toolbar"><strong>创建版本策略</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitVersionPolicy">
@@ -703,9 +799,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="风控面板">
+      <section v-if="activeSection === 'risk'" class="section-page">
         <el-row :gutter="16">
           <el-col :span="6"><el-card><strong>风险总数</strong><p>{{ riskSummary.total }}</p></el-card></el-col>
           <el-col :span="6"><el-card><strong>未处理</strong><p>{{ riskSummary.open }}</p></el-card></el-col>
@@ -762,9 +858,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="渠道与卡密">
+      <section v-if="activeSection === 'channels'" class="section-page">
         <div class="table-card">
           <div class="toolbar"><strong>创建租户</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitTenant">
@@ -859,9 +955,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="离线与解绑">
+      <section v-if="activeSection === 'offline'" class="section-page">
         <div class="table-card">
           <div class="toolbar"><strong>创建离线授权包</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitOfflinePackage">
@@ -926,9 +1022,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="保护器适配">
+      <section v-if="activeSection === 'protectors'" class="section-page">
         <div class="table-card">
           <div class="toolbar"><strong>创建保护器适配器</strong></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitProtectorAdapter">
@@ -962,11 +1058,62 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>
+      </section>
 
-      <el-tab-pane label="日志">
-        <h3>激活日志</h3>
-        <el-table :data="activationLogs" size="small">
+      <section v-if="activeSection === 'sdk'" class="section-page">
+        <div class="sdk-grid">
+          <article v-for="resource in sdkResources" :key="resource.name" class="sdk-card">
+            <div>
+              <strong>{{ resource.name }}</strong>
+              <p>{{ resource.description }}</p>
+            </div>
+            <a :href="resource.url" target="_blank" rel="noopener noreferrer">
+              <el-button type="primary" plain :icon="resource.action === '下载 ZIP' ? Download : Link">{{ resource.action }}</el-button>
+            </a>
+          </article>
+        </div>
+
+        <div class="doc-panel">
+          <div class="toolbar">
+            <div>
+              <strong>接入步骤</strong>
+              <span class="muted">生产环境启用请求签名时，客户端必须配置与服务端一致的签名密钥</span>
+            </div>
+          </div>
+          <ol class="integration-steps">
+            <li>在后台创建产品，记录产品编码，例如 <code>demo_app</code>。</li>
+            <li>创建套餐和授权卡密，并将 License Key 发放给客户。</li>
+            <li>客户端集成对应 SDK，配置 <code>apiBaseUrl</code>、<code>productCode</code> 和可选的 <code>requestSigningSecret</code>。</li>
+            <li>首次启动调用激活接口，保存服务端返回的 lease token。</li>
+            <li>启动时调用验证接口，运行中定时调用心跳接口续租。</li>
+            <li>根据返回的功能开关、版本策略和错误码控制软件功能、升级提示和封禁处理。</li>
+          </ol>
+        </div>
+
+        <div class="doc-panel">
+          <div class="toolbar"><strong>快速命令</strong></div>
+          <div class="code-grid">
+            <pre><code>npm --prefix sdk-electron install
+npm --prefix sdk-electron run build</code></pre>
+            <pre><code>make -C sdk-cpp clean all</code></pre>
+            <pre><code>dotnet build sdk-dotnet/demo/Entitlement.Sdk.Demo.csproj</code></pre>
+            <pre><code>export ENTITLEMENT_API_BASE_URL=http://127.0.0.1:3000
+export ENTITLEMENT_PRODUCT_CODE=demo_app
+export ENTITLEMENT_LICENSE_KEY=DEMO-AAAA-BBBB-CCCC</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="activeSection === 'logs'" class="section-page">
+        <div class="log-toolbar">
+          <el-select v-model="activeLogType" aria-label="选择日志类型" style="width: 220px">
+            <el-option label="激活日志" value="activation" />
+            <el-option label="心跳日志" value="heartbeat" />
+            <el-option label="审计日志" value="audit" />
+          </el-select>
+        </div>
+
+        <el-table v-if="activeLogType === 'activation'" :data="activationLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
@@ -975,8 +1122,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="createdAt" label="时间" min-width="190" />
         </el-table>
 
-        <h3>心跳日志</h3>
-        <el-table :data="heartbeatLogs" size="small">
+        <el-table v-if="activeLogType === 'heartbeat'" :data="heartbeatLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
@@ -985,16 +1131,16 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="createdAt" label="时间" min-width="190" />
         </el-table>
 
-        <h3>审计日志</h3>
-        <el-table :data="auditLogs" size="small">
+        <el-table v-if="activeLogType === 'audit'" :data="auditLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="targetType" label="对象" width="140" />
           <el-table-column prop="targetId" label="对象 ID" width="100" />
           <el-table-column prop="action" label="动作" />
           <el-table-column prop="createdAt" label="时间" min-width="190" />
         </el-table>
-      </el-tab-pane>
-      </el-tabs>
+      </section>
+      </section>
+      </template>
     </section>
   </main>
 </template>

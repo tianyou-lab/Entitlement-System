@@ -187,9 +187,30 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  const payload = (await response.json()) as ApiResponse<T>;
+  const payload = await parseApiResponse<T>(response);
   if (!response.ok || payload.code !== 'OK') {
     throw new Error(payload.message || payload.code || '请求失败');
   }
   return payload.data;
+}
+
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return {
+      code: response.ok ? 'OK' : `HTTP_${response.status}`,
+      message: response.ok ? 'success' : `请求失败：HTTP ${response.status}`,
+      data: null as T,
+    };
+  }
+
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    return {
+      code: `HTTP_${response.status}`,
+      message: response.ok ? '服务器返回了非 JSON 响应' : `请求失败：HTTP ${response.status}`,
+      data: null as T,
+    };
+  }
 }
