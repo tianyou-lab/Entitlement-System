@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuditService } from '../audit/audit.service';
+import { PublicApiRateLimitGuard, RateLimitService } from '../common/guards/rate-limit.guard';
 import { NonceReplayService, RequestSignatureGuard } from '../common/guards/request-signature.guard';
 import { AuthController } from './auth/auth.controller';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
@@ -21,6 +22,6 @@ import { VersionPoliciesController } from './version-policies/version-policies.c
     }),
   ],
   controllers: [AuthController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, VersionPoliciesController, P2AdminController, PublicOfflinePackageController, PublicDeviceUnbindController],
-  providers: [AuthService, AdminAuthGuard, AuditService, NonceReplayService, RequestSignatureGuard],
+  providers: [AuthService, AdminAuthGuard, AuditService, RateLimitService, PublicApiRateLimitGuard, NonceReplayService, RequestSignatureGuard],
 })
 export class AdminModule {}

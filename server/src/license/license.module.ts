@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { PublicApiRateLimitGuard, RateLimitService } from '../common/guards/rate-limit.guard';
 import { NonceReplayService, RequestSignatureGuard } from '../common/guards/request-signature.guard';
 import { DeviceService } from '../device/device.service';
 import { LeaseService } from '../lease/lease.service';
@@ -25,6 +26,8 @@ import { VerifyHeartbeatService } from './verify-heartbeat.service';
     VersionService,
     AuditService,
     RiskService,
+    RateLimitService,
+    PublicApiRateLimitGuard,
     NonceReplayService,
     RequestSignatureGuard,
     ActivationService,

@@ -23,6 +23,7 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm --prefix server ci
       - run: npm --prefix server exec -- prisma validate --schema server/prisma/schema.prisma
+      - run: npm --prefix server exec -- prisma migrate diff --from-empty --to-schema-datamodel server/prisma/schema.prisma --script --output /tmp/entitlement-schema.sql
       - run: npm --prefix server run lint
       - run: npm --prefix server run test
       - run: npm --prefix server run test:e2e

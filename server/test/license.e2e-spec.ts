@@ -5,11 +5,13 @@ import { DeviceStatus, LeaseStatus, LicenseStatus, PlanStatus, ProductStatus } f
 import * as request from 'supertest';
 import { AuditService } from '../src/audit/audit.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { PublicApiRateLimitGuard, RateLimitService } from '../src/common/guards/rate-limit.guard';
 import { NonceReplayService, RequestSignatureGuard, stableStringify } from '../src/common/guards/request-signature.guard';
 import { ErrorCode } from '../src/common/error-codes';
 import { PrismaService } from '../src/database/prisma.service';
 import { DeviceService } from '../src/device/device.service';
 import { LeaseService } from '../src/lease/lease.service';
+import { PublicDeviceUnbindController, PublicOfflinePackageController } from '../src/admin/p2/p2.controller';
 import { ActivationService } from '../src/license/activation.service';
 import { LicenseController } from '../src/license/license.controller';
 import { LicenseService } from '../src/license/license.service';
@@ -17,6 +19,7 @@ import { VerifyHeartbeatService } from '../src/license/verify-heartbeat.service'
 import { PlanService } from '../src/plan/plan.service';
 import { ProductService } from '../src/product/product.service';
 import { RiskService } from '../src/risk/risk.service';
+import { VersionController } from '../src/version/version.controller';
 import { VersionService } from '../src/version/version.service';
 
 const devicePayload = (deviceCode: string) => ({
@@ -89,6 +92,30 @@ function createPrismaStub() {
   const activationLogs: any[] = [];
   const heartbeatLogs: any[] = [];
   const riskEvents: any[] = [];
+  const deviceUnbindRequests: any[] = [];
+  const offlinePayload = {
+    licenseId: license.id,
+    licenseKey: license.licenseKey,
+    productCode: product.productCode,
+    planCode: plan.planCode,
+    expireAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    featureFlags: plan.featureFlags,
+  };
+  const offlinePackage = {
+    id: 1,
+    tenantId: null,
+    licenseId: license.id,
+    deviceId: null,
+    packageCode: 'OFFLINE-AAAA-BBBB',
+    payload: offlinePayload,
+    signature: createHmac('sha256', process.env.LEASE_SECRET ?? 'dev-lease-secret').update(`OFFLINE-AAAA-BBBB.${JSON.stringify(offlinePayload)}`).digest('base64url'),
+    status: 'active',
+    expireAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    license,
+    device: null,
+  };
 
   const prisma = {
     product: {
@@ -107,7 +134,11 @@ function createPrismaStub() {
       }),
     },
     device: {
-      findUnique: jest.fn(({ where }) => Promise.resolve(devices.find((device) => device.deviceCode === where.deviceCode || device.id === where.id) ?? null)),
+      findUnique: jest.fn(({ where, include }) => {
+        const device = devices.find((item) => item.deviceCode === where.deviceCode || item.id === where.id) ?? null;
+        if (!device) return Promise.resolve(null);
+        return Promise.resolve(include?.license ? { ...device, license } : device);
+      }),
       count: jest.fn(({ where }) => Promise.resolve(devices.filter((device) => device.licenseId === where.licenseId && device.status === where.status).length)),
       create: jest.fn(({ data }) => {
         const device = {
@@ -180,9 +211,19 @@ function createPrismaStub() {
         return Promise.resolve(data);
       }),
     },
+    offlinePackage: {
+      findUnique: jest.fn(({ where }) => Promise.resolve(where.packageCode === offlinePackage.packageCode ? offlinePackage : null)),
+    },
+    deviceUnbindRequest: {
+      create: jest.fn(({ data }) => {
+        const unbindRequest = { id: deviceUnbindRequests.length + 1, ...data, status: 'pending', createdAt: new Date(), updatedAt: new Date() };
+        deviceUnbindRequests.push(unbindRequest);
+        return Promise.resolve(unbindRequest);
+      }),
+    },
   };
 
-  return { prisma, license, devices, leases, policy };
+  return { prisma, license, devices, leases, policy, offlinePackage };
 }
 
 describe('License API (e2e)', () => {
@@ -192,7 +233,7 @@ describe('License API (e2e)', () => {
   beforeEach(async () => {
     store = createPrismaStub();
     const moduleRef = await Test.createTestingModule({
-      controllers: [LicenseController],
+      controllers: [LicenseController, VersionController, PublicOfflinePackageController, PublicDeviceUnbindController],
       providers: [
         ProductService,
         PlanService,
@@ -202,6 +243,8 @@ describe('License API (e2e)', () => {
         VersionService,
         AuditService,
         RiskService,
+        RateLimitService,
+        PublicApiRateLimitGuard,
         NonceReplayService,
         RequestSignatureGuard,
         ActivationService,
@@ -230,6 +273,18 @@ describe('License API (e2e)', () => {
       .set('x-entitlement-nonce', nonce)
       .set('x-entitlement-signature', signature)
       .send(body);
+  }
+
+  function signedGet(path: string) {
+    const timestamp = Date.now().toString();
+    const nonce = `${timestamp}-${Math.random()}`;
+    const secret = process.env.PUBLIC_API_SIGNING_SECRET ?? 'ci-public-api-signing-secret';
+    const signature = createHmac('sha256', secret).update(['GET', path, timestamp, nonce, stableStringify({})].join('\n')).digest('base64url');
+    return request(app.getHttpServer())
+      .get(path)
+      .set('x-entitlement-timestamp', timestamp)
+      .set('x-entitlement-nonce', nonce)
+      .set('x-entitlement-signature', signature);
   }
 
   async function activate(deviceCode = 'dev-1') {
@@ -292,6 +347,84 @@ describe('License API (e2e)', () => {
       .expect(HttpStatus.BAD_REQUEST)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.DEVICE_LIMIT_REACHED, message: 'device limit reached', data: null });
+      });
+  });
+
+  it('rate limits public license requests', async () => {
+    const previousLimit = process.env.PUBLIC_API_RATE_LIMIT_MAX;
+    const previousWindow = process.env.PUBLIC_API_RATE_LIMIT_WINDOW_MS;
+    process.env.PUBLIC_API_RATE_LIMIT_MAX = '1';
+    process.env.PUBLIC_API_RATE_LIMIT_WINDOW_MS = '60000';
+    try {
+      await signedPost('/api/v1/license/activate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload('dev-1') })
+        .expect(HttpStatus.CREATED);
+
+      await signedPost('/api/v1/license/activate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', device: devicePayload('dev-1') })
+        .expect(HttpStatus.TOO_MANY_REQUESTS)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({ code: ErrorCode.RATE_LIMITED, message: 'too many requests', data: null });
+        });
+    } finally {
+      if (previousLimit === undefined) delete process.env.PUBLIC_API_RATE_LIMIT_MAX;
+      else process.env.PUBLIC_API_RATE_LIMIT_MAX = previousLimit;
+      if (previousWindow === undefined) delete process.env.PUBLIC_API_RATE_LIMIT_WINDOW_MS;
+      else process.env.PUBLIC_API_RATE_LIMIT_WINDOW_MS = previousWindow;
+    }
+  });
+
+  it('returns version policy for a product', async () => {
+    await signedGet('/api/v1/version/policy?productCode=demo_app')
+      .expect(HttpStatus.OK)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            minSupportedVersion: '1.0.0',
+            latestVersion: '1.0.0',
+            forceUpgrade: false,
+          },
+        });
+      });
+  });
+
+  it('imports an active offline package', async () => {
+    await signedPost('/api/v1/offline-packages/import', {
+      packageCode: store.offlinePackage.packageCode,
+      signature: store.offlinePackage.signature,
+      payload: store.offlinePackage.payload,
+    })
+      .expect(HttpStatus.CREATED)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            packageCode: store.offlinePackage.packageCode,
+            licenseStatus: LicenseStatus.active,
+          },
+        });
+      });
+  });
+
+  it('creates a public device unbind request', async () => {
+    await activate('dev-1');
+
+    await signedPost('/api/v1/device-unbind-requests', {
+      licenseKey: 'DEMO-AAAA-BBBB-CCCC',
+      deviceCode: 'dev-1',
+      reason: 'change computer',
+    })
+      .expect(HttpStatus.CREATED)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          message: 'created',
+          data: {
+            licenseId: 1,
+            deviceId: 1,
+            reason: 'change computer',
+            status: 'pending',
+          },
+        });
       });
   });
 });

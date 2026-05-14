@@ -52,7 +52,7 @@ export LEASE_TTL_MINUTES=120
 
 ```bash
 npm --prefix server exec -- prisma generate --schema server/prisma/schema.prisma
-npm --prefix server exec -- prisma db push --schema server/prisma/schema.prisma
+npm --prefix server exec -- prisma migrate dev --schema server/prisma/schema.prisma
 npm --prefix server exec -- prisma db seed --schema server/prisma/schema.prisma
 ```
 
@@ -89,11 +89,27 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 初始化数据库：
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml exec server npx prisma db push
+scripts/prod-migrate.sh
 docker compose --env-file .env.production -f docker-compose.prod.yml exec server npx prisma db seed
 ```
 
+生产环境使用 Prisma migration，迁移文件位于 `server/prisma/migrations/`。不要在生产环境直接使用 `db push`。
+
 生产环境必须使用高强度随机 `POSTGRES_PASSWORD`、`ADMIN_PASSWORD`、`JWT_SECRET`、`LEASE_SECRET` 和 `PUBLIC_API_SIGNING_SECRET`。
+
+常用生产辅助脚本：
+
+```bash
+scripts/prod-migrate.sh
+scripts/prod-backup.sh
+scripts/prod-healthcheck.sh
+```
+
+服务健康检查入口：
+
+```bash
+curl http://127.0.0.1:3000/health
+```
 
 ## SDK 接入
 
@@ -121,6 +137,8 @@ dotnet run --project sdk-dotnet/demo/Entitlement.Sdk.Demo.csproj
 
 ```bash
 npm --prefix server run lint
+npm --prefix server exec -- prisma validate --schema server/prisma/schema.prisma
+npm --prefix server exec -- prisma migrate diff --from-empty --to-schema-datamodel server/prisma/schema.prisma --script --output /tmp/entitlement-schema.sql
 npm --prefix server run test
 npm --prefix server run test:e2e
 npm --prefix server run build

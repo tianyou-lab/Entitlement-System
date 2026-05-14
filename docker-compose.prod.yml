@@ -27,25 +27,45 @@ services:
       LEASE_SECRET: ${LEASE_SECRET:?set LEASE_SECRET}
       PUBLIC_API_SIGNING_SECRET: ${PUBLIC_API_SIGNING_SECRET:?set PUBLIC_API_SIGNING_SECRET}
       LEASE_TTL_MINUTES: ${LEASE_TTL_MINUTES:-120}
+      PUBLIC_API_RATE_LIMIT_MAX: ${PUBLIC_API_RATE_LIMIT_MAX:-120}
+      PUBLIC_API_RATE_LIMIT_WINDOW_MS: ${PUBLIC_API_RATE_LIMIT_WINDOW_MS:-60000}
       PORT: 3000
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   admin:
     image: entitlement-system-admin:prod
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     ports:
       - "8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   license-ui:
     image: entitlement-system-license-ui:prod
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     ports:
       - "8081:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

@@ -1,9 +1,10 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { PublicApiRateLimitGuard } from '../common/guards/rate-limit.guard';
 import { RequestSignatureGuard } from '../common/guards/request-signature.guard';
 import { ok } from '../common/response';
 import { VersionService } from './version.service';
 
-@UseGuards(RequestSignatureGuard)
+@UseGuards(PublicApiRateLimitGuard, RequestSignatureGuard)
 @Controller('/api/v1/version')
 export class VersionController {
   constructor(private readonly versionService: VersionService) {}

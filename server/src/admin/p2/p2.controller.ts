@@ -4,6 +4,7 @@ import { OfflinePackageStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { AppError } from '../../common/errors';
 import { ErrorCode } from '../../common/error-codes';
+import { PublicApiRateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { RequestSignatureGuard } from '../../common/guards/request-signature.guard';
 import { ok } from '../../common/response';
 import { PrismaService } from '../../database/prisma.service';
@@ -242,7 +243,7 @@ export class P2AdminController {
   }
 }
 
-@UseGuards(RequestSignatureGuard)
+@UseGuards(PublicApiRateLimitGuard, RequestSignatureGuard)
 @Controller('/api/v1/offline-packages')
 export class PublicOfflinePackageController {
   constructor(private readonly prisma: PrismaService) {}
@@ -260,7 +261,7 @@ export class PublicOfflinePackageController {
   }
 }
 
-@UseGuards(RequestSignatureGuard)
+@UseGuards(PublicApiRateLimitGuard, RequestSignatureGuard)
 @Controller('/api/v1/device-unbind-requests')
 export class PublicDeviceUnbindController {
   constructor(private readonly prisma: PrismaService) {}

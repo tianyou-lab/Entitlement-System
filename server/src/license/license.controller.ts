@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
+import { PublicApiRateLimitGuard } from '../common/guards/rate-limit.guard';
 import { RequestSignatureGuard } from '../common/guards/request-signature.guard';
 import { ok } from '../common/response';
 import { ActivationService } from './activation.service';
 import { DeactivateDto, HeartbeatDto, VerifyDto, ActivateDto } from './dto/license.dto';
 import { VerifyHeartbeatService } from './verify-heartbeat.service';
 
-@UseGuards(RequestSignatureGuard)
+@UseGuards(PublicApiRateLimitGuard, RequestSignatureGuard)
 @Controller('/api/v1/license')
 export class LicenseController {
   constructor(
