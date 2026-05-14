@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { LicenseStatus, PlanStatus } from '@prisma/client';
+import { LicenseStatus, PlanStatus, ProductStatus } from '@prisma/client';
 import { ErrorCode } from '../common/error-codes';
 import { AppError } from '../common/errors';
 import { PrismaService } from '../database/prisma.service';
@@ -22,6 +22,9 @@ export class LicenseService {
       throw new AppError(ErrorCode.LICENSE_NOT_FOUND, 'license not found');
     }
     if (license.product.productCode !== productCode) {
+      throw new AppError(ErrorCode.PRODUCT_MISMATCH, 'product mismatch');
+    }
+    if (license.product.status !== ProductStatus.active) {
       throw new AppError(ErrorCode.PRODUCT_MISMATCH, 'product mismatch');
     }
     if (license.status === LicenseStatus.banned) {

@@ -31,6 +31,11 @@ describe('LicenseService', () => {
     await expect(service.validateLicense('other', 'LIC-1')).rejects.toMatchObject({ code: ErrorCode.PRODUCT_MISMATCH });
   });
 
+  it('rejects inactive products', async () => {
+    const { service } = createService({ ...validLicense, product: { ...validLicense.product, status: ProductStatus.inactive } });
+    await expect(service.validateLicense('demo', 'LIC-1')).rejects.toMatchObject({ code: ErrorCode.PRODUCT_MISMATCH });
+  });
+
   it('rejects expired license', async () => {
     const { service } = createService({ ...validLicense, expireAt: new Date(Date.now() - 1) });
     await expect(service.validateLicense('demo', 'LIC-1')).rejects.toMatchObject({ code: ErrorCode.LICENSE_EXPIRED });
