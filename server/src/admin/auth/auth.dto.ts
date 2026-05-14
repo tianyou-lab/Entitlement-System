@@ -9,3 +9,13 @@ export class LoginDto {
   @IsNotEmpty()
   password: string;
 }
+
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  oldPassword: string;
+
+  @IsString()
+  @IsNotEmpty()
+  newPassword: string;
+}

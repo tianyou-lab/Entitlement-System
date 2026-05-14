@@ -21,6 +21,10 @@ export async function login(username: string, password: string) {
   return result;
 }
 
+export function changePassword(oldPassword: string, newPassword: string) {
+  return request<{ changed: boolean }>('/admin/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } });
+}
+
 export function listProducts() {
   return request<Product[]>('/admin/products');
 }

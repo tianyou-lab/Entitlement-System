@@ -12,6 +12,7 @@ export interface AdminUser {
 
 export interface LoginResult {
   accessToken: string;
+  passwordChangeRequired: boolean;
   admin: AdminUser;
 }
 

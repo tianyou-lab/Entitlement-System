@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import { changePassword, clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const token = ref(getToken());
 const loading = ref(false);
+const passwordChangeRequired = ref(false);
 const products = ref<Product[]>([]);
 const plans = ref<Plan[]>([]);
 const licenses = ref<License[]>([]);
@@ -24,6 +25,7 @@ const unbindRequests = ref<DeviceUnbindRequest[]>([]);
 const protectorAdapters = ref<ProtectorAdapter[]>([]);
 
 const loginForm = reactive({ username: 'admin', password: 'admin123456' });
+const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
@@ -47,8 +49,10 @@ async function submitLogin() {
   try {
     const result = await login(loginForm.username, loginForm.password);
     token.value = result.accessToken;
+    passwordChangeRequired.value = result.passwordChangeRequired;
+    passwordForm.oldPassword = loginForm.password;
     ElMessage.success(`欢迎 ${result.admin.username}`);
-    await refreshAll();
+    if (!result.passwordChangeRequired) await refreshAll();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败');
   } finally {
@@ -278,9 +282,20 @@ async function toggleProtectorAdapter(row: ProtectorAdapter) {
   });
 }
 
+async function submitPasswordChange() {
+  await withMessage('密码已修改', async () => {
+    await changePassword(passwordForm.oldPassword, passwordForm.newPassword);
+    passwordChangeRequired.value = false;
+    passwordForm.oldPassword = '';
+    passwordForm.newPassword = '';
+    await refreshAll();
+  });
+}
+
 function logout() {
   clearToken();
   token.value = null;
+  passwordChangeRequired.value = false;
 }
 
 const planFlagsText = ref(JSON.stringify(planForm.featureFlags, null, 2));
@@ -327,6 +342,21 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <el-input v-model="loginForm.password" type="password" autocomplete="current-password" show-password />
       </el-form-item>
       <el-button type="primary" :loading="loading" native-type="submit" style="width: 100%">登录</el-button>
+    </el-form>
+  </main>
+
+  <main v-else-if="passwordChangeRequired" class="login-card">
+    <h1>修改默认管理员密码</h1>
+    <p>首次登录后必须设置至少 12 位的新密码。</p>
+    <el-form label-position="top" @submit.prevent="submitPasswordChange">
+      <el-form-item label="旧密码">
+        <el-input v-model="passwordForm.oldPassword" type="password" autocomplete="current-password" show-password />
+      </el-form-item>
+      <el-form-item label="新密码">
+        <el-input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" show-password />
+      </el-form-item>
+      <el-button type="primary" :loading="loading" native-type="submit" style="width: 100%">修改密码</el-button>
+      <el-button style="width: 100%; margin-top: 12px; margin-left: 0" @click="logout">退出</el-button>
     </el-form>
   </main>
 

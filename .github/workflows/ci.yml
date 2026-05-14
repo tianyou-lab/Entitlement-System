@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://entitlement:entitlement@127.0.0.1:5432/entitlement?schema=public
+      JWT_SECRET: ci-jwt-secret
+      LEASE_SECRET: ci-lease-secret
+      PUBLIC_API_SIGNING_SECRET: ci-public-api-signing-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm --prefix server ci
+      - run: npm --prefix server exec -- prisma validate --schema server/prisma/schema.prisma
+      - run: npm --prefix server run lint
+      - run: npm --prefix server run test
+      - run: npm --prefix server run test:e2e
+      - run: npm --prefix server run build
+
+  web-and-electron:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [admin, license-ui, sdk-electron, demo-electron]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - run: npm --prefix ${{ matrix.package }} ci
+      - run: npm --prefix ${{ matrix.package }} run lint
+      - run: npm --prefix ${{ matrix.package }} run test
+      - run: npm --prefix ${{ matrix.package }} run build
+
+  native-sdks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: make -C sdk-cpp clean all
+      - run: dotnet build sdk-dotnet/demo/Entitlement.Sdk.Demo.csproj
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t entitlement-server:ci server

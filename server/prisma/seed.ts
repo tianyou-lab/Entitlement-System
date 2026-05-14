@@ -4,14 +4,19 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminPassword = await bcrypt.hash('admin123456', 10);
+  const seededPassword = process.env.ADMIN_PASSWORD;
+  if (process.env.NODE_ENV === 'production' && !seededPassword) {
+    throw new Error('ADMIN_PASSWORD is required when seeding production');
+  }
+  const adminPassword = await bcrypt.hash(seededPassword ?? 'admin123456', 10);
 
   await prisma.admin.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: seededPassword ? { passwordHash: adminPassword, passwordChangedAt: new Date() } : {},
     create: {
       username: 'admin',
       passwordHash: adminPassword,
+      passwordChangedAt: seededPassword ? new Date() : null,
       roleCode: 'super_admin',
       status: 'active',
     },

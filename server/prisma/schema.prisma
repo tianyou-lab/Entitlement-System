@@ -421,15 +421,16 @@ model ProtectorAdapter {
 }
 
 model Admin {
-  id           Int         @id @default(autoincrement())
-  username     String      @unique @db.VarChar(64)
-  passwordHash String      @map("password_hash") @db.VarChar(255)
-  roleCode     String      @map("role_code") @db.VarChar(64)
-  status       AdminStatus @default(active)
-  tenantId     Int?        @map("tenant_id")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  tenant       Tenant?     @relation(fields: [tenantId], references: [id])
+  id                Int         @id @default(autoincrement())
+  username          String      @unique @db.VarChar(64)
+  passwordHash      String      @map("password_hash") @db.VarChar(255)
+  passwordChangedAt DateTime?   @map("password_changed_at")
+  roleCode          String      @map("role_code") @db.VarChar(64)
+  status            AdminStatus @default(active)
+  tenantId          Int?        @map("tenant_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  tenant            Tenant?     @relation(fields: [tenantId], references: [id])
 
   @@map("admins")
 }

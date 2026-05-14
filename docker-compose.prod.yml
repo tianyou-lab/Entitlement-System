@@ -23,6 +23,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://entitlement:${POSTGRES_PASSWORD}@postgres:5432/entitlement?schema=public
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       LEASE_SECRET: ${LEASE_SECRET:?set LEASE_SECRET}
       PUBLIC_API_SIGNING_SECRET: ${PUBLIC_API_SIGNING_SECRET:?set PUBLIC_API_SIGNING_SECRET}

@@ -4,11 +4,12 @@ var apiBaseUrl = Environment.GetEnvironmentVariable("ENTITLEMENT_API_BASE_URL") 
 var productCode = Environment.GetEnvironmentVariable("ENTITLEMENT_PRODUCT_CODE") ?? "demo_app";
 var licenseKey = Environment.GetEnvironmentVariable("ENTITLEMENT_LICENSE_KEY") ?? "LIC-DEMO";
 
+var signingSecret = Environment.GetEnvironmentVariable("ENTITLEMENT_REQUEST_SIGNING_SECRET");
 using var http = new HttpClient { BaseAddress = new Uri(apiBaseUrl) };
-var client = new LicenseClient(http, productCode);
+var client = new LicenseClient(http, productCode, signingSecret);
 var device = new DeviceInfo(
     DeviceCode: Environment.MachineName,
-    Fingerprint: Environment.MachineName,
+    FingerprintHash: Environment.MachineName,
     DeviceName: Environment.MachineName,
     OsType: Environment.OSVersion.Platform.ToString(),
     OsVersion: Environment.OSVersion.VersionString,
