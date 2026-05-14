@@ -4,6 +4,7 @@ import { DeviceStatus, LeaseStatus, LicenseStatus, PlanStatus, ProductStatus } f
 import * as request from 'supertest';
 import { AuditService } from '../src/audit/audit.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { NonceReplayService, RequestSignatureGuard } from '../src/common/guards/request-signature.guard';
 import { ErrorCode } from '../src/common/error-codes';
 import { PrismaService } from '../src/database/prisma.service';
 import { DeviceService } from '../src/device/device.service';
@@ -169,7 +170,7 @@ function createPrismaStub() {
     },
   };
 
-  return { prisma, license, devices, leases };
+  return { prisma, license, devices, leases, policy };
 }
 
 describe('License API (e2e)', () => {
@@ -188,6 +189,8 @@ describe('License API (e2e)', () => {
         LeaseService,
         VersionService,
         AuditService,
+        NonceReplayService,
+        RequestSignatureGuard,
         ActivationService,
         VerifyHeartbeatService,
         { provide: PrismaService, useValue: store.prisma },
@@ -251,6 +254,20 @@ describe('License API (e2e)', () => {
       .expect(HttpStatus.FORBIDDEN)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.LICENSE_BANNED, message: 'license banned', data: null });
+      });
+  });
+
+  it('rejects verify when force upgrade is required', async () => {
+    const leaseToken = await activate();
+    store.policy.minSupportedVersion = '2.0.0';
+    store.policy.forceUpgrade = true;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/license/verify')
+      .send({ productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
+      .expect(HttpStatus.BAD_REQUEST)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ code: ErrorCode.FORCE_UPGRADE_REQUIRED, message: 'force upgrade required', data: null });
       });
   });
 

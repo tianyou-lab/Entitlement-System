@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: entitlement
+      POSTGRES_USER: entitlement
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U entitlement -d entitlement"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://entitlement:${POSTGRES_PASSWORD}@postgres:5432/entitlement?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      LEASE_SECRET: ${LEASE_SECRET:?set LEASE_SECRET}
+      PUBLIC_API_SIGNING_SECRET: ${PUBLIC_API_SIGNING_SECRET:?set PUBLIC_API_SIGNING_SECRET}
+      LEASE_TTL_MINUTES: ${LEASE_TTL_MINUTES:-120}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:

@@ -20,6 +20,7 @@ export class VerifyHeartbeatService {
     const lease = await this.leases.validate(dto.leaseToken, dto.deviceCode);
     const license = await this.licenses.ensureRuntimeValid(lease.licenseId, dto.productCode);
     await this.devices.findActiveByCode(dto.deviceCode);
+    const versionPolicy = await this.versions.ensureAllowed(dto.productCode, dto.appVersion);
     await this.audit.heartbeat({
       licenseId: lease.licenseId,
       deviceId: lease.deviceId,
@@ -34,13 +35,14 @@ export class VerifyHeartbeatService {
       licenseStatus: license.status,
       needRefresh: lease.expireAt.getTime() - Date.now() < 30 * 60 * 1000,
       featureFlags: this.licenses.featureFlags(license),
-      versionPolicy: await this.versions.getPolicy(dto.productCode),
+      versionPolicy,
     };
   }
 
   async heartbeat(dto: HeartbeatDto, ip?: string) {
     const lease = await this.leases.validate(dto.leaseToken, dto.deviceCode);
     const license = await this.licenses.ensureRuntimeValid(lease.licenseId, dto.productCode);
+    const versionPolicy = await this.versions.ensureAllowed(dto.productCode, dto.appVersion);
     await this.devices.touch(lease.deviceId, dto.appVersion, ip);
     await this.leases.revoke(lease.id);
     const issued = await this.leases.issue(lease.licenseId, lease.deviceId, dto.appVersion);
@@ -58,7 +60,7 @@ export class VerifyHeartbeatService {
       leaseToken: issued.leaseToken,
       leaseExpireAt: issued.leaseExpireAt,
       featureFlags: this.licenses.featureFlags(license),
-      versionPolicy: await this.versions.getPolicy(dto.productCode),
+      versionPolicy,
     };
   }
 

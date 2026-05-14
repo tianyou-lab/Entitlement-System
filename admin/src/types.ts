@@ -51,6 +51,61 @@ export interface License {
   plan?: Plan;
 }
 
+export interface Device {
+  id: number;
+  licenseId: number;
+  deviceCode: string;
+  deviceName: string;
+  osType: string;
+  osVersion: string;
+  appVersion: string;
+  status: 'active' | 'removed' | 'banned';
+  lastSeenAt: string;
+  lastIp?: string;
+  license?: License;
+}
+
+export interface ActivationLog {
+  id: number;
+  resultCode: string;
+  message: string;
+  ip?: string;
+  createdAt: string;
+  license?: License;
+  device?: Device;
+}
+
+export interface HeartbeatLog {
+  id: number;
+  actionType: string;
+  resultCode: string;
+  ip?: string;
+  createdAt: string;
+  license?: License;
+  device?: Device;
+}
+
+export interface AuditLog {
+  id: number;
+  actorType: string;
+  actorId?: number;
+  targetType: string;
+  targetId?: number;
+  action: string;
+  createdAt: string;
+}
+
+export interface VersionPolicy {
+  id: number;
+  productId: number;
+  minSupportedVersion: string;
+  latestVersion: string;
+  forceUpgrade: boolean;
+  downloadUrl?: string;
+  notice?: string;
+  product?: Product;
+}
+
 export interface CreateProductInput {
   productCode: string;
   name: string;
@@ -76,4 +131,13 @@ export interface CreateLicenseInput {
   maxDevicesOverride?: number;
   featureFlagsOverride?: Record<string, unknown>;
   notes?: string;
+}
+
+export interface CreateVersionPolicyInput {
+  productId: number;
+  minSupportedVersion: string;
+  latestVersion: string;
+  forceUpgrade?: boolean;
+  downloadUrl?: string;
+  notice?: string;
 }

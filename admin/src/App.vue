@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import { clearToken, createLicense, createPlan, createProduct, getToken, listLicenses, listPlans, listProducts, login, updateLicenseStatus } from './api';
-import type { CreateLicenseInput, CreatePlanInput, CreateProductInput, License, Plan, Product } from './types';
+import { clearToken, createLicense, createPlan, createProduct, createVersionPolicy, getToken, listActivationLogs, listAuditLogs, listDevices, listHeartbeatLogs, listLicenses, listPlans, listProducts, listVersionPolicies, login, updateDeviceStatus, updateLicenseStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AuditLog, CreateLicenseInput, CreatePlanInput, CreateProductInput, CreateVersionPolicyInput, Device, HeartbeatLog, License, Plan, Product, VersionPolicy } from './types';
 
 const token = ref(getToken());
 const loading = ref(false);
 const products = ref<Product[]>([]);
 const plans = ref<Plan[]>([]);
 const licenses = ref<License[]>([]);
+const devices = ref<Device[]>([]);
+const activationLogs = ref<ActivationLog[]>([]);
+const heartbeatLogs = ref<HeartbeatLog[]>([]);
+const auditLogs = ref<AuditLog[]>([]);
+const versionPolicies = ref<VersionPolicy[]>([]);
 
 const loginForm = reactive({ username: 'admin', password: 'admin123456' });
 const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
+const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
 
 const isAuthenticated = computed(() => Boolean(token.value));
 
@@ -38,13 +44,28 @@ async function submitLogin() {
 async function refreshAll() {
   loading.value = true;
   try {
-    const [nextProducts, nextPlans, nextLicenses] = await Promise.all([listProducts(), listPlans(), listLicenses()]);
+    const [nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies] = await Promise.all([
+      listProducts(),
+      listPlans(),
+      listLicenses(),
+      listDevices(),
+      listActivationLogs(),
+      listHeartbeatLogs(),
+      listAuditLogs(),
+      listVersionPolicies(),
+    ]);
     products.value = nextProducts;
     plans.value = nextPlans;
     licenses.value = nextLicenses;
+    devices.value = nextDevices;
+    activationLogs.value = nextActivationLogs;
+    heartbeatLogs.value = nextHeartbeatLogs;
+    auditLogs.value = nextAuditLogs;
+    versionPolicies.value = nextVersionPolicies;
     if (!planForm.productId && nextProducts[0]) planForm.productId = nextProducts[0].id;
     if (!licenseForm.productId && nextProducts[0]) licenseForm.productId = nextProducts[0].id;
     if (!licenseForm.planId && nextPlans[0]) licenseForm.planId = nextPlans[0].id;
+    if (!versionPolicyForm.productId && nextProducts[0]) versionPolicyForm.productId = nextProducts[0].id;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载失败');
   } finally {
@@ -90,6 +111,27 @@ async function submitLicense() {
 async function changeLicenseStatus(row: License, status: License['status']) {
   await withMessage('License 状态已更新', async () => {
     await updateLicenseStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function changeDeviceStatus(row: Device, status: Device['status']) {
+  await withMessage('设备状态已更新', async () => {
+    await updateDeviceStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function submitVersionPolicy() {
+  await withMessage('版本策略已创建', async () => {
+    await createVersionPolicy({ ...versionPolicyForm, downloadUrl: versionPolicyForm.downloadUrl || undefined, notice: versionPolicyForm.notice || undefined });
+    await refreshAll();
+  });
+}
+
+async function toggleForceUpgrade(row: VersionPolicy) {
+  await withMessage('强制升级策略已更新', async () => {
+    await updateVersionPolicy(row.id, { forceUpgrade: !row.forceUpgrade });
     await refreshAll();
   });
 }
@@ -266,6 +308,98 @@ async function withMessage(message: string, action: () => Promise<void>) {
               <el-button size="small" type="danger" @click="changeLicenseStatus(row, 'banned')">封禁</el-button>
             </template>
           </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="设备">
+        <el-table :data="devices">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="deviceCode" label="设备码" min-width="180" />
+          <el-table-column prop="deviceName" label="名称" />
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="appVersion" label="应用版本" width="120" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="lastSeenAt" label="最后在线" min-width="190" />
+          <el-table-column label="操作" width="240">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeDeviceStatus(row, 'active')">启用</el-button>
+              <el-button size="small" @click="changeDeviceStatus(row, 'removed')">移除</el-button>
+              <el-button size="small" type="danger" @click="changeDeviceStatus(row, 'banned')">封禁</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="版本策略">
+        <div class="table-card">
+          <div class="toolbar"><strong>创建版本策略</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitVersionPolicy">
+            <el-form-item label="产品">
+              <el-select v-model="versionPolicyForm.productId" style="width: 100%">
+                <el-option v-for="product in products" :key="product.id" :label="`${product.name} (${product.productCode})`" :value="product.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="最低支持版本">
+              <el-input v-model="versionPolicyForm.minSupportedVersion" />
+            </el-form-item>
+            <el-form-item label="最新版本">
+              <el-input v-model="versionPolicyForm.latestVersion" />
+            </el-form-item>
+            <el-form-item label="强制升级">
+              <el-switch v-model="versionPolicyForm.forceUpgrade" />
+            </el-form-item>
+            <el-form-item label="下载地址">
+              <el-input v-model="versionPolicyForm.downloadUrl" />
+            </el-form-item>
+            <el-form-item label="公告">
+              <el-input v-model="versionPolicyForm.notice" />
+            </el-form-item>
+            <el-button type="primary" native-type="submit">创建策略</el-button>
+          </el-form>
+        </div>
+        <el-table :data="versionPolicies" style="margin-top: 18px">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="product.productCode" label="产品" />
+          <el-table-column prop="minSupportedVersion" label="最低版本" />
+          <el-table-column prop="latestVersion" label="最新版本" />
+          <el-table-column prop="forceUpgrade" label="强制升级" width="120" />
+          <el-table-column prop="notice" label="公告" />
+          <el-table-column label="操作" width="160">
+            <template #default="{ row }">
+              <el-button size="small" @click="toggleForceUpgrade(row)">{{ row.forceUpgrade ? '关闭强制' : '开启强制' }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="日志">
+        <h3>激活日志</h3>
+        <el-table :data="activationLogs" size="small">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
+          <el-table-column prop="resultCode" label="结果" width="140" />
+          <el-table-column prop="message" label="消息" />
+          <el-table-column prop="createdAt" label="时间" min-width="190" />
+        </el-table>
+
+        <h3>心跳日志</h3>
+        <el-table :data="heartbeatLogs" size="small">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="license.licenseKey" label="License" min-width="210" />
+          <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
+          <el-table-column prop="actionType" label="动作" width="120" />
+          <el-table-column prop="resultCode" label="结果" width="140" />
+          <el-table-column prop="createdAt" label="时间" min-width="190" />
+        </el-table>
+
+        <h3>审计日志</h3>
+        <el-table :data="auditLogs" size="small">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="targetType" label="对象" width="140" />
+          <el-table-column prop="targetId" label="对象 ID" width="100" />
+          <el-table-column prop="action" label="动作" />
+          <el-table-column prop="createdAt" label="时间" min-width="190" />
         </el-table>
       </el-tab-pane>
     </el-tabs>

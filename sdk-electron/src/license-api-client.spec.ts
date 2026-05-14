@@ -18,6 +18,17 @@ describe('LicenseApiClient', () => {
     await expect(client.verify('token', 'dev', '1.0.0')).rejects.toMatchObject({ code: 'LICENSE_BANNED' });
   });
 
+  it('adds request signature headers when configured', async () => {
+    const fetchImpl = jest.fn().mockReturnValue(mockResponse({ code: 'OK', message: 'valid', data: { licenseStatus: 'active' } }));
+    const client = new LicenseApiClient('http://localhost:3000', 'demo', fetchImpl as any, 'secret');
+    await client.verify('token', 'dev', '1.0.0');
+    expect(fetchImpl.mock.calls[0][1].headers).toMatchObject({
+      'x-entitlement-timestamp': expect.any(String),
+      'x-entitlement-nonce': expect.any(String),
+      'x-entitlement-signature': expect.any(String),
+    });
+  });
+
   it('maps fetch failure to NETWORK_ERROR', async () => {
     const fetchImpl = jest.fn().mockRejectedValue(new Error('offline'));
     const client = new LicenseApiClient('http://localhost:3000', 'demo', fetchImpl as any);

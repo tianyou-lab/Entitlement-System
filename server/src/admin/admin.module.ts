@@ -4,9 +4,12 @@ import { AuditService } from '../audit/audit.service';
 import { AuthController } from './auth/auth.controller';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
 import { AuthService } from './auth/auth.service';
+import { DevicesController } from './devices/devices.controller';
 import { LicensesController } from './licenses/licenses.controller';
+import { LogsController } from './logs/logs.controller';
 import { PlansController } from './plans/plans.controller';
 import { ProductsController } from './products/products.controller';
+import { VersionPoliciesController } from './version-policies/version-policies.controller';
 
 @Module({
   imports: [
@@ -15,7 +18,7 @@ import { ProductsController } from './products/products.controller';
       signOptions: { expiresIn: '8h' },
     }),
   ],
-  controllers: [AuthController, ProductsController, PlansController, LicensesController],
+  controllers: [AuthController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, VersionPoliciesController],
   providers: [AuthService, AdminAuthGuard, AuditService],
 })
 export class AdminModule {}

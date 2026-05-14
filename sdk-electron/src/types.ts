@@ -83,6 +83,7 @@ export interface LicenseSdkConfig {
   graceHours?: number;
   device?: Partial<DeviceInfo>;
   fetchImpl?: typeof fetch;
+  requestSigningSecret?: string;
 }
 
 export interface LicenseState {

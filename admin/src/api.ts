@@ -1,4 +1,4 @@
-import type { ApiResponse, CreateLicenseInput, CreatePlanInput, CreateProductInput, License, LoginResult, Plan, Product } from './types';
+import type { ActivationLog, ApiResponse, AuditLog, CreateLicenseInput, CreatePlanInput, CreateProductInput, CreateVersionPolicyInput, Device, HeartbeatLog, License, LoginResult, Plan, Product, VersionPolicy } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
 const TOKEN_KEY = 'entitlement_admin_token';
@@ -47,6 +47,38 @@ export function createLicense(input: CreateLicenseInput) {
 
 export function updateLicenseStatus(id: number, status: License['status']) {
   return request<License>(`/admin/licenses/${id}/status`, { method: 'PUT', body: { status } });
+}
+
+export function listDevices() {
+  return request<Device[]>('/admin/devices');
+}
+
+export function updateDeviceStatus(id: number, status: Device['status']) {
+  return request<Device>(`/admin/devices/${id}/status`, { method: 'PUT', body: { status } });
+}
+
+export function listActivationLogs() {
+  return request<ActivationLog[]>('/admin/activation-logs');
+}
+
+export function listHeartbeatLogs() {
+  return request<HeartbeatLog[]>('/admin/heartbeat-logs');
+}
+
+export function listAuditLogs() {
+  return request<AuditLog[]>('/admin/audit-logs');
+}
+
+export function listVersionPolicies() {
+  return request<VersionPolicy[]>('/admin/version-policies');
+}
+
+export function createVersionPolicy(input: CreateVersionPolicyInput) {
+  return request<VersionPolicy>('/admin/version-policies', { method: 'POST', body: input });
+}
+
+export function updateVersionPolicy(id: number, input: Partial<CreateVersionPolicyInput>) {
+  return request<VersionPolicy>(`/admin/version-policies/${id}`, { method: 'PUT', body: input });
 }
 
 interface RequestOptions {
