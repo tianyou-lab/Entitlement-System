@@ -32,5 +32,23 @@ services:
     ports:
       - "3000:3000"
 
+  admin:
+    build:
+      context: ./admin
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+
+  license-ui:
+    build:
+      context: ./license-ui
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "8081:80"
+
 volumes:
   postgres_data:

@@ -9,7 +9,7 @@ export async function activateLicense(licenseKey: string, theme: LicenseUiTheme)
   }
 
   try {
-    const response = await fetch(new URL('/api/v1/license/activate', theme.apiBaseUrl), {
+    const response = await fetch(new URL('/api/v1/license/activate', theme.apiBaseUrl || window.location.origin), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
