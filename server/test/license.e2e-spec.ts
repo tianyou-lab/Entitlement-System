@@ -11,7 +11,8 @@ import { ErrorCode } from '../src/common/error-codes';
 import { PrismaService } from '../src/database/prisma.service';
 import { DeviceService } from '../src/device/device.service';
 import { LeaseService } from '../src/lease/lease.service';
-import { PublicDeviceUnbindController, PublicOfflinePackageController } from '../src/admin/p2/p2.controller';
+import { P2AdminController, PublicDeviceUnbindController, PublicOfflinePackageController } from '../src/admin/p2/p2.controller';
+import { AdminAuthGuard } from '../src/admin/auth/admin-auth.guard';
 import { ActivationService } from '../src/license/activation.service';
 import { LicenseController } from '../src/license/license.controller';
 import { LicenseService } from '../src/license/license.service';
@@ -91,6 +92,7 @@ function createPrismaStub() {
   const leases: any[] = [];
   const activationLogs: any[] = [];
   const heartbeatLogs: any[] = [];
+  const auditLogs: any[] = [];
   const riskEvents: any[] = [];
   const deviceUnbindRequests: any[] = [];
   const offlinePayload = {
@@ -156,6 +158,10 @@ function createPrismaStub() {
       }),
       update: jest.fn(({ where, data }) => {
         const device = devices.find((item) => item.id === where.id || item.deviceCode === where.deviceCode);
+        if (data.unbindCount?.increment) {
+          device.unbindCount += data.unbindCount.increment;
+          delete data.unbindCount;
+        }
         Object.assign(device, data, { updatedAt: new Date() });
         return Promise.resolve(device);
       }),
@@ -207,12 +213,40 @@ function createPrismaStub() {
     },
     riskEvent: {
       create: jest.fn(({ data }) => {
-        riskEvents.push(data);
-        return Promise.resolve(data);
+        const riskEvent = {
+          id: riskEvents.length + 1,
+          tenantId: null,
+          licenseId: null,
+          deviceId: null,
+          severity: 'low',
+          status: 'open',
+          count: 1,
+          details: {},
+          firstSeenAt: new Date(),
+          lastSeenAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        };
+        riskEvents.push(riskEvent);
+        return Promise.resolve(riskEvent);
+      }),
+      findUnique: jest.fn(({ where }) => Promise.resolve(riskEvents.find((item) => item.id === where.id) ?? null)),
+      findMany: jest.fn(() => Promise.resolve(riskEvents)),
+      update: jest.fn(({ where, data }) => {
+        const riskEvent = riskEvents.find((item) => item.id === where.id);
+        Object.assign(riskEvent, data, { updatedAt: new Date() });
+        return Promise.resolve(riskEvent);
       }),
     },
     offlinePackage: {
       findUnique: jest.fn(({ where }) => Promise.resolve(where.packageCode === offlinePackage.packageCode ? offlinePackage : null)),
+      findMany: jest.fn(() => Promise.resolve([offlinePackage])),
+      update: jest.fn(({ where, data }) => {
+        if (where.id !== offlinePackage.id) return Promise.resolve(null);
+        Object.assign(offlinePackage, data, { updatedAt: new Date() });
+        return Promise.resolve(offlinePackage);
+      }),
     },
     deviceUnbindRequest: {
       create: jest.fn(({ data }) => {
@@ -220,10 +254,24 @@ function createPrismaStub() {
         deviceUnbindRequests.push(unbindRequest);
         return Promise.resolve(unbindRequest);
       }),
+      findUnique: jest.fn(({ where }) => Promise.resolve(deviceUnbindRequests.find((item) => item.id === where.id) ?? null)),
+      findMany: jest.fn(() => Promise.resolve(deviceUnbindRequests)),
+      update: jest.fn(({ where, data }) => {
+        const unbindRequest = deviceUnbindRequests.find((item) => item.id === where.id);
+        Object.assign(unbindRequest, data, { updatedAt: new Date() });
+        return Promise.resolve(unbindRequest);
+      }),
+    },
+    auditLog: {
+      create: jest.fn(({ data }) => {
+        const auditLog = { id: auditLogs.length + 1, ...data, createdAt: new Date() };
+        auditLogs.push(auditLog);
+        return Promise.resolve(auditLog);
+      }),
     },
   };
 
-  return { prisma, license, devices, leases, policy, offlinePackage };
+  return { prisma, license, devices, leases, policy, offlinePackage, riskEvents, deviceUnbindRequests, auditLogs };
 }
 
 describe('License API (e2e)', () => {
@@ -233,7 +281,7 @@ describe('License API (e2e)', () => {
   beforeEach(async () => {
     store = createPrismaStub();
     const moduleRef = await Test.createTestingModule({
-      controllers: [LicenseController, VersionController, PublicOfflinePackageController, PublicDeviceUnbindController],
+      controllers: [LicenseController, VersionController, P2AdminController, PublicOfflinePackageController, PublicDeviceUnbindController],
       providers: [
         ProductService,
         PlanService,
@@ -251,7 +299,10 @@ describe('License API (e2e)', () => {
         VerifyHeartbeatService,
         { provide: PrismaService, useValue: store.prisma },
       ],
-    }).compile();
+    })
+      .overrideGuard(AdminAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new HttpExceptionFilter());
@@ -423,6 +474,99 @@ describe('License API (e2e)', () => {
             deviceId: 1,
             reason: 'change computer',
             status: 'pending',
+          },
+        });
+      });
+  });
+
+  it('approves an admin device unbind request and removes the device', async () => {
+    await activate('dev-1');
+
+    const created = await request(app.getHttpServer())
+      .post('/admin/device-unbind-requests')
+      .send({
+        licenseKey: 'DEMO-AAAA-BBBB-CCCC',
+        deviceCode: 'dev-1',
+        reason: 'change computer',
+      })
+      .expect(HttpStatus.CREATED);
+
+    await request(app.getHttpServer())
+      .put(`/admin/device-unbind-requests/${created.body.data.id}/review`)
+      .send({ status: 'approved' })
+      .expect(HttpStatus.OK)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            status: 'approved',
+            licenseId: 1,
+            deviceId: 1,
+          },
+        });
+      });
+
+    expect(store.devices[0]).toMatchObject({ status: DeviceStatus.removed, unbindCount: 1 });
+    expect(store.auditLogs).toEqual(expect.arrayContaining([expect.objectContaining({ targetType: 'device_unbind_request', action: 'review' })]));
+  });
+
+  it('revokes an offline package from the admin API', async () => {
+    await request(app.getHttpServer())
+      .put(`/admin/offline-packages/${store.offlinePackage.id}/status`)
+      .send({ status: 'revoked' })
+      .expect(HttpStatus.OK)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            id: store.offlinePackage.id,
+            status: 'revoked',
+          },
+        });
+      });
+
+    expect(store.offlinePackage.status).toBe('revoked');
+    expect(store.auditLogs).toEqual(expect.arrayContaining([expect.objectContaining({ targetType: 'offline_package', action: 'update_status' })]));
+  });
+
+  it('resolves a risk event from the admin API', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/admin/risk-events')
+      .send({
+        licenseId: 1,
+        deviceId: 1,
+        eventType: 'activation_frequency',
+        severity: 'high',
+        summary: 'too many activations',
+        details: { count: 10 },
+      })
+      .expect(HttpStatus.CREATED);
+
+    await request(app.getHttpServer())
+      .put(`/admin/risk-events/${created.body.data.id}/status`)
+      .send({ status: 'resolved' })
+      .expect(HttpStatus.OK)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            id: created.body.data.id,
+            status: 'resolved',
+          },
+        });
+      });
+
+    await request(app.getHttpServer())
+      .get('/admin/risk-summary')
+      .expect(HttpStatus.OK)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: ErrorCode.OK,
+          data: {
+            total: 1,
+            open: 0,
+            high: 1,
+            resolved: 1,
           },
         });
       });
