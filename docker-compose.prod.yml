@@ -15,8 +15,7 @@ services:
       retries: 5
 
   server:
-    build:
-      context: ./server
+    image: entitlement-system-server:prod
     restart: unless-stopped
     depends_on:
       postgres:
@@ -33,8 +32,7 @@ services:
       - "3000:3000"
 
   admin:
-    build:
-      context: ./admin
+    image: entitlement-system-admin:prod
     restart: unless-stopped
     depends_on:
       - server
@@ -42,8 +40,7 @@ services:
       - "8080:80"
 
   license-ui:
-    build:
-      context: ./license-ui
+    image: entitlement-system-license-ui:prod
     restart: unless-stopped
     depends_on:
       - server

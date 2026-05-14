@@ -10,11 +10,12 @@ import { VersionController } from '../version/version.controller';
 import { VersionService } from '../version/version.service';
 import { ActivationService } from './activation.service';
 import { LicenseController } from './license.controller';
+import { LicenseUiController } from './license-ui.controller';
 import { LicenseService } from './license.service';
 import { VerifyHeartbeatService } from './verify-heartbeat.service';
 
 @Module({
-  controllers: [LicenseController, VersionController],
+  controllers: [LicenseController, LicenseUiController, VersionController],
   providers: [
     ProductService,
     PlanService,

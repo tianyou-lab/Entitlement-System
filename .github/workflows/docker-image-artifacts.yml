@@ -1,0 +1,31 @@
+name: Docker Image Artifacts
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  docker-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: entitlement-system-server
+            context: server
+          - name: entitlement-system-admin
+            context: admin
+          - name: entitlement-system-license-ui
+            context: license-ui
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t ${{ matrix.name }}:prod ${{ matrix.context }}
+      - name: Save image artifact
+        run: docker save ${{ matrix.name }}:prod | gzip > ${{ matrix.name }}.tar.gz
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}.tar.gz
+          retention-days: 7
