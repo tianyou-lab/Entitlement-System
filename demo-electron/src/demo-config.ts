@@ -9,6 +9,7 @@ export interface DemoConfig {
   licenseUiUrl: string;
   storagePath: string;
   heartbeatIntervalMs: number;
+  requestSigningSecret?: string;
 }
 
 export function createDemoConfig(): DemoConfig {
@@ -19,5 +20,6 @@ export function createDemoConfig(): DemoConfig {
     licenseUiUrl: process.env.LICENSE_UI_URL ?? pathToFileURL(resolve(__dirname, '../../../license-ui/dist/index.html')).toString(),
     storagePath: join(app.getPath('userData'), 'license-cache.bin'),
     heartbeatIntervalMs: process.env.LICENSE_HEARTBEAT_INTERVAL_MS ? Number(process.env.LICENSE_HEARTBEAT_INTERVAL_MS) : 30_000,
+    requestSigningSecret: process.env.LICENSE_REQUEST_SIGNING_SECRET ?? process.env.ENTITLEMENT_REQUEST_SIGNING_SECRET,
   };
 }

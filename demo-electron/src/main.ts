@@ -16,6 +16,7 @@ async function bootstrap() {
     appVersion: config.appVersion,
     storagePath: config.storagePath,
     heartbeatIntervalMs: config.heartbeatIntervalMs,
+    requestSigningSecret: config.requestSigningSecret,
   });
 
   registerIpc(config);
