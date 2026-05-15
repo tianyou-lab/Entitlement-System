@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Grid, Key, Link, Monitor, Refresh, Setting, SwitchButton, Tickets, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getRiskSummary, getToken, listActivationLogs, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Grid, Key, Link, Monitor, Refresh, Setting, SwitchButton, Tickets, TrendCharts, User } from '@element-plus/icons-vue';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
@@ -13,6 +13,8 @@ const navItems = [
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
   { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
+  { id: 'monitoring', label: '监控告警', summary: '查看 API 请求、失败率、延迟和数据库运行指标', icon: TrendCharts },
+  { id: 'admins', label: '管理员', summary: '创建运营账号并维护角色和启停状态', icon: User },
   { id: 'channels', label: '渠道与卡密', summary: '管理租户、渠道和批次卡密库存', icon: Tickets },
   { id: 'offline', label: '离线与解绑', summary: '创建离线授权包并审核解绑申请', icon: Connection },
   { id: 'protectors', label: '保护器适配', summary: '维护加壳和保护器适配器配置', icon: Cpu },
@@ -33,6 +35,7 @@ const sdkResources = [
 const token = ref(getToken());
 const loading = ref(false);
 const passwordChangeRequired = ref(false);
+const admins = ref<AdminAccount[]>([]);
 const products = ref<Product[]>([]);
 const plans = ref<Plan[]>([]);
 const licenses = ref<License[]>([]);
@@ -47,6 +50,7 @@ const cardKeys = ref<CardKey[]>([]);
 const offlinePackages = ref<OfflinePackage[]>([]);
 const riskEvents = ref<RiskEvent[]>([]);
 const riskSummary = ref<RiskSummary>({ total: 0, open: 0, high: 0, resolved: 0 });
+const monitoringMetrics = ref<MonitoringMetrics>(emptyMonitoringMetrics());
 const unbindRequests = ref<DeviceUnbindRequest[]>([]);
 const protectorAdapters = ref<ProtectorAdapter[]>([]);
 const selectedLicenses = ref<License[]>([]);
@@ -57,6 +61,7 @@ const activeLogType = ref<'activation' | 'heartbeat' | 'audit'>('activation');
 
 const loginForm = reactive({ username: 'admin', password: '' });
 const passwordForm = reactive({ oldPassword: '', newPassword: '' });
+const adminForm = reactive<CreateAdminInput>({ username: '', password: '', roleCode: 'viewer', tenantId: undefined });
 const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
@@ -76,6 +81,7 @@ const activeCardKeys = computed(() => cardKeys.value.filter((cardKey) => cardKey
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'active').length);
 const openRisks = computed(() => riskSummary.value.open);
 const activeNavItem = computed(() => navItems.find((item) => item.id === activeSection.value) ?? navItems[0]);
+const topErrorCodes = computed(() => Object.entries(monitoringMetrics.value.api.errorCodes).sort((left, right) => right[1] - left[1]).slice(0, 8));
 
 function statusText(status?: string | boolean) {
   if (typeof status === 'boolean') return status ? '是' : '否';
@@ -90,6 +96,9 @@ function statusText(status?: string | boolean) {
     issued: '已发放',
     redeemed: '已兑换',
     disabled: '已禁用',
+    super_admin: '超级管理员',
+    operator: '运营人员',
+    viewer: '只读人员',
     revoked: '已撤销',
     open: '待处理',
     resolved: '已解决',
@@ -135,7 +144,8 @@ async function submitLogin() {
 async function refreshAll() {
   loading.value = true;
   try {
-    const [nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies, nextTenants, nextChannels, nextCardKeys, nextOfflinePackages, nextRiskEvents, nextRiskSummary, nextUnbindRequests, nextProtectorAdapters] = await Promise.all([
+    const [nextAdmins, nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies, nextTenants, nextChannels, nextCardKeys, nextOfflinePackages, nextRiskEvents, nextRiskSummary, nextMonitoringMetrics, nextUnbindRequests, nextProtectorAdapters] = await Promise.all([
+      listAdmins().catch(() => []),
       listProducts(),
       listPlans(),
       listLicenses(),
@@ -150,9 +160,11 @@ async function refreshAll() {
       listOfflinePackages(),
       listRiskEvents(),
       getRiskSummary(),
+      getMonitoringMetrics(),
       listDeviceUnbindRequests(),
       listProtectorAdapters(),
     ]);
+    admins.value = nextAdmins;
     products.value = nextProducts;
     plans.value = nextPlans;
     licenses.value = nextLicenses;
@@ -167,6 +179,7 @@ async function refreshAll() {
     offlinePackages.value = nextOfflinePackages;
     riskEvents.value = nextRiskEvents;
     riskSummary.value = nextRiskSummary;
+    monitoringMetrics.value = nextMonitoringMetrics;
     unbindRequests.value = nextUnbindRequests;
     protectorAdapters.value = nextProtectorAdapters;
     if (!planForm.productId && nextProducts[0]) planForm.productId = nextProducts[0].id;
@@ -175,6 +188,7 @@ async function refreshAll() {
     if (!versionPolicyForm.productId && nextProducts[0]) versionPolicyForm.productId = nextProducts[0].id;
     if (!cardKeyForm.productId && nextProducts[0]) cardKeyForm.productId = nextProducts[0].id;
     if (!cardKeyForm.planId && nextPlans[0]) cardKeyForm.planId = nextPlans[0].id;
+    if (!adminForm.tenantId && nextTenants[0]) adminForm.tenantId = nextTenants[0].id;
     if (!offlinePackageForm.licenseId && nextLicenses[0]) offlinePackageForm.licenseId = nextLicenses[0].id;
     if (!unbindRequestForm.licenseId && nextLicenses[0]) unbindRequestForm.licenseId = nextLicenses[0].id;
     if (!unbindRequestForm.deviceId && nextDevices[0]) unbindRequestForm.deviceId = nextDevices[0].id;
@@ -183,6 +197,58 @@ async function refreshAll() {
   } finally {
     loading.value = false;
   }
+}
+
+async function submitAdmin() {
+  await withMessage('管理员已创建', async () => {
+    await createAdmin({ ...adminForm, tenantId: optionalId(adminForm.tenantId) });
+    adminForm.username = '';
+    adminForm.password = '';
+    adminForm.roleCode = 'viewer';
+    await refreshAll();
+  });
+}
+
+async function changeAdminStatus(row: AdminAccount, status: AdminAccount['status']) {
+  await withMessage('管理员状态已更新', async () => {
+    await updateAdminStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function changeAdminRole(row: AdminAccount, roleCode: AdminAccount['roleCode']) {
+  await withMessage('管理员角色已更新', async () => {
+    await updateAdminRole(row.id, roleCode);
+    await refreshAll();
+  });
+}
+
+function emptyMonitoringMetrics(): MonitoringMetrics {
+  return {
+    api: {
+      startedAt: '',
+      uptimeSeconds: 0,
+      requests: { total: 0, failures: 0, failureRate: 0, averageLatencyMs: 0, maxLatencyMs: 0 },
+      errorCodes: {},
+      routes: [],
+    },
+    postgres: {
+      connections: null,
+      databaseSizeBytes: null,
+    },
+  };
+}
+
+function percent(value: number) {
+  return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatBytes(value: number | null) {
+  if (value === null) return '-';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 async function submitProduct() {
@@ -868,6 +934,88 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <template #default="{ row }">
               <el-button size="small" @click="changeRiskEventStatus(row, 'resolved')">解决</el-button>
               <el-button size="small" @click="changeRiskEventStatus(row, 'ignored')">忽略</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
+
+      <section v-if="activeSection === 'monitoring'" class="section-page">
+        <el-row :gutter="16">
+          <el-col :span="6"><el-card><strong>请求总数</strong><p>{{ monitoringMetrics.api.requests.total }}</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>失败率</strong><p>{{ percent(monitoringMetrics.api.requests.failureRate) }}</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>平均延迟</strong><p>{{ monitoringMetrics.api.requests.averageLatencyMs }} ms</p></el-card></el-col>
+          <el-col :span="6"><el-card><strong>最大延迟</strong><p>{{ monitoringMetrics.api.requests.maxLatencyMs }} ms</p></el-card></el-col>
+        </el-row>
+
+        <el-row :gutter="16" style="margin-top: 18px">
+          <el-col :span="8"><el-card><strong>运行时长</strong><p>{{ monitoringMetrics.api.uptimeSeconds }} s</p></el-card></el-col>
+          <el-col :span="8"><el-card><strong>PostgreSQL 连接</strong><p>{{ monitoringMetrics.postgres.connections ?? '-' }}</p></el-card></el-col>
+          <el-col :span="8"><el-card><strong>数据库大小</strong><p>{{ formatBytes(monitoringMetrics.postgres.databaseSizeBytes) }}</p></el-card></el-col>
+        </el-row>
+
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>错误码统计</strong></div>
+          <el-empty v-if="topErrorCodes.length === 0" description="暂无失败错误码" />
+          <el-table v-else :data="topErrorCodes.map(([code, count]) => ({ code, count }))" size="small">
+            <el-table-column prop="code" label="错误码" />
+            <el-table-column prop="count" label="次数" width="120" />
+          </el-table>
+        </div>
+
+        <div class="table-card" style="margin-top: 18px">
+          <div class="toolbar"><strong>接口指标</strong></div>
+          <el-table :data="monitoringMetrics.api.routes" size="small">
+            <el-table-column prop="route" label="接口" min-width="220" />
+            <el-table-column prop="count" label="请求" width="100" />
+            <el-table-column prop="failures" label="失败" width="100" />
+            <el-table-column label="失败率" width="120">
+              <template #default="{ row }">{{ percent(row.failureRate) }}</template>
+            </el-table-column>
+            <el-table-column prop="averageLatencyMs" label="平均延迟 ms" width="140" />
+            <el-table-column prop="maxLatencyMs" label="最大延迟 ms" width="140" />
+          </el-table>
+        </div>
+      </section>
+
+      <section v-if="activeSection === 'admins'" class="section-page">
+        <div class="table-card">
+          <div class="toolbar"><strong>创建管理员</strong></div>
+          <el-form class="form-grid" label-position="top" @submit.prevent="submitAdmin">
+            <el-form-item label="用户名"><el-input v-model="adminForm.username" placeholder="viewer1" /></el-form-item>
+            <el-form-item label="初始密码"><el-input v-model="adminForm.password" type="password" show-password /></el-form-item>
+            <el-form-item label="角色">
+              <el-select v-model="adminForm.roleCode" style="width: 100%">
+                <el-option label="超级管理员" value="super_admin" />
+                <el-option label="运营人员" value="operator" />
+                <el-option label="只读人员" value="viewer" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="租户">
+              <el-select v-model="adminForm.tenantId" clearable style="width: 100%">
+                <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
+              </el-select>
+            </el-form-item>
+            <el-button type="primary" native-type="submit">创建管理员</el-button>
+          </el-form>
+        </div>
+
+        <el-table :data="admins" style="margin-top: 18px">
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="username" label="用户名" />
+          <el-table-column label="角色" width="150">
+            <template #default="{ row }"><el-tag>{{ statusText(row.roleCode) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="租户" width="160">
+            <template #default="{ row }">{{ row.tenant?.name ?? '-' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="操作" width="360">
+            <template #default="{ row }">
+              <el-button size="small" @click="changeAdminRole(row, 'viewer')">只读</el-button>
+              <el-button size="small" @click="changeAdminRole(row, 'operator')">运营</el-button>
+              <el-button size="small" @click="changeAdminStatus(row, row.status === 'active' ? 'disabled' : 'active')">{{ row.status === 'active' ? '禁用' : '启用' }}</el-button>
             </template>
           </el-table-column>
         </el-table>

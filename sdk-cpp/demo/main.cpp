@@ -1,12 +1,15 @@
 #include <iostream>
+#include <cstdlib>
 
 #include "entitlement/license_client.hpp"
 
 int main(int argc, char** argv) {
   const std::string apiBaseUrl = argc > 1 ? argv[1] : "http://127.0.0.1:3000";
   const std::string licenseKey = argc > 2 ? argv[2] : "DEMO-AAAA-BBBB-CCCC";
+  const char* signingSecret = std::getenv("ENTITLEMENT_REQUEST_SIGNING_SECRET");
+  if (!signingSecret) signingSecret = std::getenv("LICENSE_REQUEST_SIGNING_SECRET");
 
-  entitlement::LicenseClient client(apiBaseUrl, "demo_app");
+  entitlement::LicenseClient client(apiBaseUrl, "demo_app", signingSecret ? signingSecret : "");
   entitlement::DeviceInfo device{
       "cpp-demo-device",
       "cpp-demo-fingerprint",

@@ -27,6 +27,7 @@ import {
   UpdateRiskEventStatusDto,
 } from './p2.dto';
 import { ImportOfflinePackageDto } from './offline.dto';
+import { AdminRoles } from '../auth/admin-roles.decorator';
 
 @UseGuards(AdminAuthGuard)
 @Controller('/admin')
@@ -37,6 +38,7 @@ export class P2AdminController {
   ) {}
 
   @Post('tenants')
+  @AdminRoles('super_admin')
   async createTenant(@Body() dto: CreateTenantDto) {
     const tenant = await this.prisma.tenant.create({ data: dto });
     await this.audit.admin({ targetType: 'tenant', targetId: tenant.id, action: 'create', afterData: tenant });
@@ -209,6 +211,7 @@ export class P2AdminController {
   }
 
   @Post('protector-adapters')
+  @AdminRoles('super_admin')
   async createProtectorAdapter(@Body() dto: CreateProtectorAdapterDto) {
     const adapter = await this.prisma.protectorAdapter.create({ data: { ...dto, config: (dto.config ?? {}) as Prisma.InputJsonValue } });
     await this.audit.admin({ targetType: 'protector_adapter', targetId: adapter.id, action: 'create', afterData: adapter });
@@ -221,6 +224,7 @@ export class P2AdminController {
   }
 
   @Put('protector-adapters/:id/status')
+  @AdminRoles('super_admin')
   async updateProtectorAdapterStatus(@Param('id') id: string, @Body() dto: UpdateProtectorAdapterStatusDto) {
     const before = await this.prisma.protectorAdapter.findUnique({ where: { id: Number(id) } });
     const adapter = await this.prisma.protectorAdapter.update({ where: { id: Number(id) }, data: { status: dto.status } });

@@ -16,6 +16,16 @@ export interface LoginResult {
   admin: AdminUser;
 }
 
+export interface AdminAccount {
+  id: number;
+  username: string;
+  roleCode: 'super_admin' | 'operator' | 'viewer';
+  status: 'active' | 'disabled';
+  tenantId?: number;
+  tenant?: Tenant;
+  createdAt: string;
+}
+
 export interface Product {
   id: number;
   productCode: string;
@@ -178,6 +188,35 @@ export interface RiskSummary {
   resolved: number;
 }
 
+export interface RouteMetric {
+  route: string;
+  count: number;
+  failures: number;
+  failureRate: number;
+  averageLatencyMs: number;
+  maxLatencyMs: number;
+}
+
+export interface MonitoringMetrics {
+  api: {
+    startedAt: string;
+    uptimeSeconds: number;
+    requests: {
+      total: number;
+      failures: number;
+      failureRate: number;
+      averageLatencyMs: number;
+      maxLatencyMs: number;
+    };
+    errorCodes: Record<string, number>;
+    routes: RouteMetric[];
+  };
+  postgres: {
+    connections: number | null;
+    databaseSizeBytes: number | null;
+  };
+}
+
 export interface DeviceUnbindRequest {
   id: number;
   licenseId: number;
@@ -205,6 +244,13 @@ export interface CreateProductInput {
   productCode: string;
   name: string;
   description?: string;
+}
+
+export interface CreateAdminInput {
+  username: string;
+  password: string;
+  roleCode: AdminAccount['roleCode'];
+  tenantId?: number;
 }
 
 export interface CreatePlanInput {

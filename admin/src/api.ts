@@ -1,4 +1,4 @@
-import type { ActivationLog, ApiResponse, AuditLog, CardKey, Channel, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, LoginResult, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import type { ActivationLog, AdminAccount, ApiResponse, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, LoginResult, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const TOKEN_KEY = 'entitlement_admin_token';
@@ -23,6 +23,22 @@ export async function login(username: string, password: string) {
 
 export function changePassword(oldPassword: string, newPassword: string) {
   return request<{ changed: boolean }>('/admin/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } });
+}
+
+export function listAdmins() {
+  return request<AdminAccount[]>('/admin/admins');
+}
+
+export function createAdmin(input: CreateAdminInput) {
+  return request<AdminAccount>('/admin/admins', { method: 'POST', body: input });
+}
+
+export function updateAdminStatus(id: number, status: AdminAccount['status']) {
+  return request<AdminAccount>(`/admin/admins/${id}/status`, { method: 'PUT', body: { status } });
+}
+
+export function updateAdminRole(id: number, roleCode: AdminAccount['roleCode']) {
+  return request<AdminAccount>(`/admin/admins/${id}/role`, { method: 'PUT', body: { roleCode } });
 }
 
 export function listProducts() {
@@ -139,6 +155,10 @@ export function createRiskEvent(input: CreateRiskEventInput) {
 
 export function getRiskSummary() {
   return request<RiskSummary>('/admin/risk-summary');
+}
+
+export function getMonitoringMetrics() {
+  return request<MonitoringMetrics>('/admin/monitoring/metrics');
 }
 
 export function updateRiskEventStatus(id: number, status: RiskEvent['status']) {

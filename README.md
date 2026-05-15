@@ -104,6 +104,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec server
 scripts/prod-migrate.sh
 scripts/prod-backup.sh
 scripts/prod-healthcheck.sh
+scripts/prod-metrics.sh
 ```
 
 服务健康检查入口：
@@ -112,9 +113,21 @@ scripts/prod-healthcheck.sh
 curl http://127.0.0.1:3000/health
 ```
 
+后台监控快照入口：
+
+```bash
+curl -H "Authorization: Bearer <admin-token>" http://127.0.0.1:3000/admin/monitoring/metrics
+```
+
 ## SDK 接入
 
 管理员后台左侧进入 `SDK 接入` 可查看 SDK 下载入口和接入步骤。
+
+SDK 最小接入文档：
+
+- [Electron SDK](./sdk-electron/README.md)
+- [.NET SDK](./sdk-dotnet/README.md)
+- [C++ SDK Demo](./sdk-cpp/README.md)
 
 常用构建命令：
 
@@ -122,6 +135,12 @@ curl http://127.0.0.1:3000/health
 npm --prefix sdk-electron run build
 make -C sdk-cpp clean all
 dotnet build sdk-dotnet/demo/Entitlement.Sdk.Demo.csproj
+```
+
+C++ Demo 如连接启用了公共 API 请求签名的服务端，需先设置：
+
+```bash
+export ENTITLEMENT_REQUEST_SIGNING_SECRET=dev-public-api-signing-secret
 ```
 
 .NET Demo 运行示例：

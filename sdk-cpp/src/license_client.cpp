@@ -1,7 +1,12 @@
 #include "entitlement/license_client.hpp"
 
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -50,36 +55,49 @@ LicenseClient::LicenseClient(std::string apiBaseUrl, std::string productCode)
   while (!apiBaseUrl_.empty() && apiBaseUrl_.back() == '/') apiBaseUrl_.pop_back();
 }
 
+LicenseClient::LicenseClient(std::string apiBaseUrl, std::string productCode, std::string requestSigningSecret)
+    : LicenseClient(std::move(apiBaseUrl), std::move(productCode)) {
+  requestSigningSecret_ = std::move(requestSigningSecret);
+}
+
 LicenseResponse LicenseClient::activate(const std::string& licenseKey, const DeviceInfo& device) const {
   std::ostringstream body;
-  body << "{\"productCode\":\"" << jsonEscape(productCode_) << "\",\"licenseKey\":\"" << jsonEscape(licenseKey)
-       << "\",\"device\":{\"deviceCode\":\"" << jsonEscape(device.deviceCode)
-       << "\",\"fingerprintHash\":\"" << jsonEscape(device.fingerprintHash)
+  body << "{\"device\":{\"appVersion\":\"" << jsonEscape(device.appVersion)
+       << "\",\"deviceCode\":\"" << jsonEscape(device.deviceCode)
        << "\",\"deviceName\":\"" << jsonEscape(device.deviceName)
-       << "\",\"osType\":\"" << jsonEscape(device.osType)
+       << "\",\"fingerprintHash\":\"" << jsonEscape(device.fingerprintHash)
+       << "\",\"hardwareSummary\":{}"
+       << ",\"osType\":\"" << jsonEscape(device.osType)
        << "\",\"osVersion\":\"" << jsonEscape(device.osVersion)
-       << "\",\"appVersion\":\"" << jsonEscape(device.appVersion) << "\",\"hardwareSummary\":{}}}";
+       << "\"},\"licenseKey\":\"" << jsonEscape(licenseKey)
+       << "\",\"productCode\":\"" << jsonEscape(productCode_) << "\"}";
   return post("/api/v1/license/activate", body.str());
 }
 
 LicenseResponse LicenseClient::verify(const std::string& leaseToken, const std::string& deviceCode, const std::string& appVersion) const {
   std::ostringstream body;
-  body << "{\"productCode\":\"" << jsonEscape(productCode_) << "\",\"leaseToken\":\"" << jsonEscape(leaseToken)
-       << "\",\"deviceCode\":\"" << jsonEscape(deviceCode) << "\",\"appVersion\":\"" << jsonEscape(appVersion) << "\"}";
+  body << "{\"appVersion\":\"" << jsonEscape(appVersion)
+       << "\",\"deviceCode\":\"" << jsonEscape(deviceCode)
+       << "\",\"leaseToken\":\"" << jsonEscape(leaseToken)
+       << "\",\"productCode\":\"" << jsonEscape(productCode_) << "\"}";
   return post("/api/v1/license/verify", body.str());
 }
 
 LicenseResponse LicenseClient::heartbeat(const std::string& leaseToken, const std::string& deviceCode, const std::string& appVersion) const {
   std::ostringstream body;
-  body << "{\"productCode\":\"" << jsonEscape(productCode_) << "\",\"leaseToken\":\"" << jsonEscape(leaseToken)
-       << "\",\"deviceCode\":\"" << jsonEscape(deviceCode) << "\",\"appVersion\":\"" << jsonEscape(appVersion) << "\",\"runtime\":{}}";
+  body << "{\"appVersion\":\"" << jsonEscape(appVersion)
+       << "\",\"deviceCode\":\"" << jsonEscape(deviceCode)
+       << "\",\"leaseToken\":\"" << jsonEscape(leaseToken)
+       << "\",\"productCode\":\"" << jsonEscape(productCode_)
+       << "\",\"runtime\":{}}";
   return post("/api/v1/license/heartbeat", body.str());
 }
 
 LicenseResponse LicenseClient::deactivate(const std::string& licenseKey, const std::string& deviceCode) const {
   std::ostringstream body;
-  body << "{\"productCode\":\"" << jsonEscape(productCode_) << "\",\"licenseKey\":\"" << jsonEscape(licenseKey)
-       << "\",\"deviceCode\":\"" << jsonEscape(deviceCode) << "\"}";
+  body << "{\"deviceCode\":\"" << jsonEscape(deviceCode)
+       << "\",\"licenseKey\":\"" << jsonEscape(licenseKey)
+       << "\",\"productCode\":\"" << jsonEscape(productCode_) << "\"}";
   return post("/api/v1/license/deactivate", body.str());
 }
 
@@ -88,13 +106,32 @@ LicenseResponse LicenseClient::versionPolicy() const {
 }
 
 LicenseResponse LicenseClient::post(const std::string& path, const std::string& body) const {
-  const std::string command = "curl -sS -X POST -H 'content-type: application/json' --data " + shellQuote(body) + " -w '\\nHTTP_STATUS:%{http_code}' " + shellQuote(apiBaseUrl_ + path);
+  const std::string command = "curl -sS -X POST -H 'content-type: application/json' " + signatureHeaders("POST", path, body) + " --data " + shellQuote(body) + " -w '\\nHTTP_STATUS:%{http_code}' " + shellQuote(apiBaseUrl_ + path);
   return runCurl(command);
 }
 
 LicenseResponse LicenseClient::get(const std::string& path) const {
-  const std::string command = "curl -sS -w '\\nHTTP_STATUS:%{http_code}' " + shellQuote(apiBaseUrl_ + path);
+  const std::string command = "curl -sS " + signatureHeaders("GET", path, "{}") + " -w '\\nHTTP_STATUS:%{http_code}' " + shellQuote(apiBaseUrl_ + path);
   return runCurl(command);
+}
+
+std::string LicenseClient::signatureHeaders(const std::string& method, const std::string& path, const std::string& body) const {
+  if (requestSigningSecret_.empty()) return "";
+
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  std::random_device randomDevice;
+  std::mt19937_64 generator(randomDevice());
+  std::ostringstream nonce;
+  nonce << std::hex << now << generator();
+
+  const std::string timestamp = std::to_string(now);
+  const std::string nonceValue = nonce.str();
+  const std::string payload = method + "\n" + path + "\n" + timestamp + "\n" + nonceValue + "\n" + body;
+  const std::string signature = hmacSha256Base64Url(requestSigningSecret_, payload);
+
+  return "-H " + shellQuote("x-entitlement-timestamp: " + timestamp) +
+         " -H " + shellQuote("x-entitlement-nonce: " + nonceValue) +
+         " -H " + shellQuote("x-entitlement-signature: " + signature);
 }
 
 std::string jsonEscape(const std::string& value) {
@@ -136,6 +173,31 @@ std::string extractJsonString(const std::string& body, const std::string& key) {
     value += ch;
   }
   return value;
+}
+
+std::string hmacSha256Base64Url(const std::string& secret, const std::string& payload) {
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned int digestLength = 0;
+  HMAC(EVP_sha256(),
+       secret.data(),
+       static_cast<int>(secret.size()),
+       reinterpret_cast<const unsigned char*>(payload.data()),
+       payload.size(),
+       digest,
+       &digestLength);
+
+  std::string encoded(4 * ((digestLength + 2) / 3), '\0');
+  const int encodedLength = EVP_EncodeBlock(
+      reinterpret_cast<unsigned char*>(&encoded[0]),
+      digest,
+      static_cast<int>(digestLength));
+  encoded.resize(encodedLength);
+  while (!encoded.empty() && encoded.back() == '=') encoded.pop_back();
+  for (char& ch : encoded) {
+    if (ch == '+') ch = '-';
+    if (ch == '/') ch = '_';
+  }
+  return encoded;
 }
 
 }  // namespace entitlement

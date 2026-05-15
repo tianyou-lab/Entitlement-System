@@ -3,12 +3,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuditService } from '../audit/audit.service';
 import { PublicApiRateLimitGuard, RateLimitService } from '../common/guards/rate-limit.guard';
 import { NonceReplayService, RequestSignatureGuard } from '../common/guards/request-signature.guard';
+import { AdminsController } from './admins/admins.controller';
 import { AuthController } from './auth/auth.controller';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
 import { AuthService } from './auth/auth.service';
 import { DevicesController } from './devices/devices.controller';
 import { LicensesController } from './licenses/licenses.controller';
 import { LogsController } from './logs/logs.controller';
+import { MonitoringController } from './monitoring/monitoring.controller';
 import { PlansController } from './plans/plans.controller';
 import { P2AdminController, PublicDeviceUnbindController, PublicOfflinePackageController } from './p2/p2.controller';
 import { ProductsController } from './products/products.controller';
@@ -21,7 +23,7 @@ import { VersionPoliciesController } from './version-policies/version-policies.c
       signOptions: { expiresIn: '8h' },
     }),
   ],
-  controllers: [AuthController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, VersionPoliciesController, P2AdminController, PublicOfflinePackageController, PublicDeviceUnbindController],
+  controllers: [AuthController, AdminsController, ProductsController, PlansController, LicensesController, DevicesController, LogsController, MonitoringController, VersionPoliciesController, P2AdminController, PublicOfflinePackageController, PublicDeviceUnbindController],
   providers: [AuthService, AdminAuthGuard, AuditService, RateLimitService, PublicApiRateLimitGuard, NonceReplayService, RequestSignatureGuard],
 })
 export class AdminModule {}
