@@ -206,13 +206,17 @@ async function submitPlan() {
 
 async function submitLicense() {
   await withMessage('授权码已创建', async () => {
-    await createLicense({
+    const created = await createLicense({
       ...licenseForm,
       licenseKey: licenseForm.licenseKey || undefined,
       expireAt: licenseForm.expireAt || undefined,
       notes: licenseForm.notes || undefined,
       featureFlagsOverride: licenseFlagsText.value.trim() ? parseJson(licenseFlagsText.value) : undefined,
     });
+    if (created.licenseKey) {
+      await copyText(created.licenseKey);
+      ElMessage.success('授权码仅显示一次，已复制到剪贴板');
+    }
     licenseForm.licenseKey = '';
     licenseForm.notes = '';
     licenseFlagsText.value = '';
@@ -248,6 +252,11 @@ async function copyText(value?: string) {
     document.body.removeChild(textarea);
   }
   ElMessage.success('已复制到剪贴板');
+}
+
+function licenseLabel(license?: License | null) {
+  if (!license) return '-';
+  return license.licenseKey ?? `License #${license.id}`;
 }
 
 async function batchBanLicenses() {
@@ -717,10 +726,10 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <el-table :data="licenses" class="data-table" size="small" stripe border empty-text="暂无授权码，先生成一个授权码" @selection-change="handleLicenseSelection">
           <el-table-column type="selection" width="44" fixed />
           <el-table-column prop="id" label="ID" width="80" sortable />
-          <el-table-column prop="licenseKey" label="授权码（License Key）" min-width="240" show-overflow-tooltip>
+          <el-table-column label="授权码（License Key）" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">
-              <el-button link type="primary" @click="copyText(row.licenseKey)">复制</el-button>
-              <span class="key-text">{{ row.licenseKey }}</span>
+              <el-button v-if="row.licenseKey" link type="primary" @click="copyText(row.licenseKey)">复制</el-button>
+              <span class="key-text">{{ row.licenseKey ?? '仅创建时显示' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="product.productCode" label="产品" width="140" />
@@ -743,7 +752,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="deviceCode" label="设备码" min-width="180" />
           <el-table-column prop="deviceName" label="名称" />
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column prop="appVersion" label="应用版本" width="120" />
           <el-table-column label="状态" width="120">
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
@@ -818,7 +829,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </el-form-item>
             <el-form-item label="授权码">
               <el-select v-model="riskEventForm.licenseId" clearable style="width: 100%">
-                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+                <el-option v-for="license in licenses" :key="license.id" :label="licenseLabel(license)" :value="license.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="设备">
@@ -850,7 +861,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="summary" label="摘要" />
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column label="操作" width="210">
             <template #default="{ row }">
               <el-button size="small" @click="changeRiskEventStatus(row, 'resolved')">解决</el-button>
@@ -963,7 +976,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-form class="form-grid" label-position="top" @submit.prevent="submitOfflinePackage">
             <el-form-item label="授权码">
               <el-select v-model="offlinePackageForm.licenseId" style="width: 100%">
-                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+                <el-option v-for="license in licenses" :key="license.id" :label="licenseLabel(license)" :value="license.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="设备（可选）">
@@ -978,7 +991,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="offlinePackages" style="margin-top: 18px">
           <el-table-column prop="packageCode" label="包编码" min-width="210" />
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column prop="device.deviceCode" label="设备" />
           <el-table-column prop="expireAt" label="到期时间" min-width="190" />
           <el-table-column label="状态" width="120">
@@ -996,7 +1011,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-form class="form-grid" label-position="top" @submit.prevent="submitUnbindRequest">
             <el-form-item label="授权码">
               <el-select v-model="unbindRequestForm.licenseId" style="width: 100%">
-                <el-option v-for="license in licenses" :key="license.id" :label="license.licenseKey" :value="license.id" />
+                <el-option v-for="license in licenses" :key="license.id" :label="licenseLabel(license)" :value="license.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="设备">
@@ -1009,7 +1024,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
           </el-form>
         </div>
         <el-table :data="unbindRequests" style="margin-top: 18px">
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column prop="device.deviceCode" label="设备" />
           <el-table-column prop="reason" label="原因" />
           <el-table-column label="状态" width="120">
@@ -1115,7 +1132,9 @@ export ENTITLEMENT_LICENSE_KEY=DEMO-AAAA-BBBB-CCCC</code></pre>
 
         <el-table v-if="activeLogType === 'activation'" :data="activationLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
           <el-table-column prop="resultCode" label="结果" width="140" />
           <el-table-column prop="message" label="消息" />
@@ -1124,7 +1143,9 @@ export ENTITLEMENT_LICENSE_KEY=DEMO-AAAA-BBBB-CCCC</code></pre>
 
         <el-table v-if="activeLogType === 'heartbeat'" :data="heartbeatLogs" size="small">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="license.licenseKey" label="授权码" min-width="210" />
+          <el-table-column label="授权" min-width="210">
+            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+          </el-table-column>
           <el-table-column prop="device.deviceCode" label="设备" min-width="160" />
           <el-table-column prop="actionType" label="动作" width="120" />
           <el-table-column prop="resultCode" label="结果" width="140" />

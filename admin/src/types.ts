@@ -40,7 +40,7 @@ export interface Plan {
 
 export interface License {
   id: number;
-  licenseKey: string;
+  licenseKey?: string;
   productId: number;
   planId: number;
   status: 'active' | 'inactive' | 'expired' | 'banned' | 'suspended';

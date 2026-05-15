@@ -15,7 +15,7 @@ export class AuditService {
         message: data.message,
         ip: data.ip,
         userAgent: data.userAgent,
-        requestPayload: (data.requestPayload ?? {}) as Prisma.InputJsonValue,
+        requestPayload: sanitizeForAudit(data.requestPayload ?? {}) as Prisma.InputJsonValue,
       },
     });
   }
@@ -29,7 +29,7 @@ export class AuditService {
         actionType: data.actionType,
         resultCode: data.resultCode,
         ip: data.ip,
-        payload: (data.payload ?? {}) as Prisma.InputJsonValue,
+        payload: sanitizeForAudit(data.payload ?? {}) as Prisma.InputJsonValue,
       },
     });
   }
@@ -42,10 +42,48 @@ export class AuditService {
         targetType: data.targetType,
         targetId: data.targetId,
         action: data.action,
-        beforeData: data.beforeData as Prisma.InputJsonValue,
-        afterData: data.afterData as Prisma.InputJsonValue,
+        beforeData: sanitizeForAudit(data.beforeData) as Prisma.InputJsonValue,
+        afterData: sanitizeForAudit(data.afterData) as Prisma.InputJsonValue,
         ip: data.ip,
       },
     });
   }
+}
+
+const SENSITIVE_KEYS = new Set([
+  'licenseKey',
+  'leaseToken',
+  'requestSigningSecret',
+  'publicApiSigningSecret',
+  'password',
+  'passwordHash',
+  'oldPassword',
+  'newPassword',
+  'jwtSecret',
+  'leaseSecret',
+  'authorization',
+]);
+
+function sanitizeForAudit(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map((item) => sanitizeForAudit(item));
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key,
+      isSensitiveKey(key) ? redactValue(entry) : sanitizeForAudit(entry),
+    ]),
+  );
+}
+
+function isSensitiveKey(key: string) {
+  return SENSITIVE_KEYS.has(key) || /token|secret|password|licensekey/i.test(key);
+}
+
+function redactValue(value: unknown) {
+  if (typeof value !== 'string') return '[REDACTED]';
+  if (value.length <= 8) return '[REDACTED]';
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }

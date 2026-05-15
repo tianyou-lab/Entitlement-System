@@ -1,5 +1,5 @@
-import { createHmac, randomUUID } from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { LeaseStatus } from '@prisma/client';
 import { ErrorCode } from '../common/error-codes';
 import { AppError } from '../common/errors';
@@ -9,6 +9,7 @@ interface LeasePayload {
   jti: string;
   licenseId: number;
   deviceId: number;
+  iat: number;
   exp: number;
 }
 
@@ -24,6 +25,7 @@ export class LeaseService {
       jti: randomUUID(),
       licenseId,
       deviceId,
+      iat: issuedAt.getTime(),
       exp: expireAt.getTime(),
     };
     const encodedPayload = this.base64Url(JSON.stringify(payload));
@@ -78,21 +80,40 @@ export class LeaseService {
 
   private parseToken(token: string): LeasePayload {
     const [encodedPayload, signature] = token.split('.');
-    if (!encodedPayload || !signature || this.sign(encodedPayload) !== signature) {
+    if (!encodedPayload || !signature || !safeEqual(signature, this.sign(encodedPayload))) {
       throw new AppError(ErrorCode.LEASE_INVALID, 'lease invalid');
     }
     try {
-      return JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as LeasePayload;
+      const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as Partial<LeasePayload>;
+      if (!payload.jti || !Number.isInteger(payload.licenseId) || !Number.isInteger(payload.deviceId) || !Number.isFinite(payload.exp)) {
+        throw new Error('invalid lease payload');
+      }
+      return payload as LeasePayload;
     } catch {
       throw new AppError(ErrorCode.LEASE_INVALID, 'lease invalid');
     }
   }
 
   private sign(value: string) {
-    return createHmac('sha256', process.env.LEASE_SECRET ?? 'dev-lease-secret').update(value).digest('base64url');
+    return createHmac('sha256', readLeaseSecret()).update(value).digest('base64url');
   }
 
   private base64Url(value: string) {
     return Buffer.from(value).toString('base64url');
   }
+}
+
+function readLeaseSecret() {
+  const secret = process.env.LEASE_SECRET;
+  if (!secret && process.env.NODE_ENV !== 'production') return 'dev-lease-secret';
+  if (!secret || secret.length < 32) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'LEASE_SECRET must be at least 32 characters', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+  return secret;
+}
+
+function safeEqual(actual: string, expected: string) {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
 }

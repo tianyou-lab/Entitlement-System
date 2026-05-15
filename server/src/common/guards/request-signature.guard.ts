@@ -23,10 +23,10 @@ export class RequestSignatureGuard implements CanActivate {
   constructor(private readonly nonceReplay: NonceReplayService) {}
 
   canActivate(context: ExecutionContext) {
-    const secret = process.env.PUBLIC_API_SIGNING_SECRET;
+    const request = context.switchToHttp().getRequest<Request>();
+    const secret = readPublicApiSigningSecret(request);
     if (!secret) return true;
 
-    const request = context.switchToHttp().getRequest<Request>();
     const timestamp = this.header(request, 'x-entitlement-timestamp');
     const nonce = this.header(request, 'x-entitlement-nonce');
     const signature = this.header(request, 'x-entitlement-signature');
@@ -38,13 +38,13 @@ export class RequestSignatureGuard implements CanActivate {
     if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
       throw new AppError(ErrorCode.UNAUTHORIZED, 'request signature expired', HttpStatus.UNAUTHORIZED);
     }
-    if (!this.nonceReplay.use(nonce)) {
-      throw new AppError(ErrorCode.UNAUTHORIZED, 'replayed request nonce', HttpStatus.UNAUTHORIZED);
-    }
 
     const expected = this.sign(secret, request.method, request.originalUrl || request.url, timestamp, nonce, stableStringify(request.body ?? {}));
     if (!safeEqual(signature, expected)) {
       throw new AppError(ErrorCode.UNAUTHORIZED, 'invalid request signature', HttpStatus.UNAUTHORIZED);
+    }
+    if (!this.nonceReplay.use(`${timestamp}:${nonce}`)) {
+      throw new AppError(ErrorCode.UNAUTHORIZED, 'replayed request nonce', HttpStatus.UNAUTHORIZED);
     }
     return true;
   }
@@ -70,4 +70,68 @@ function safeEqual(actual: string, expected: string) {
   const actualBuffer = Buffer.from(actual);
   const expectedBuffer = Buffer.from(expected);
   return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+interface PublicApiSigningSecret {
+  keyId?: string;
+  productCode?: string;
+  appVersion?: string;
+  secret: string;
+}
+
+function readPublicApiSigningSecret(request: Request) {
+  const rotatedSecret = readRotatedPublicApiSigningSecret(request);
+  if (rotatedSecret) return rotatedSecret;
+
+  const secret = process.env.PUBLIC_API_SIGNING_SECRET;
+  if (!secret && process.env.NODE_ENV !== 'production') return undefined;
+  if (!secret || secret.length < 32) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'PUBLIC_API_SIGNING_SECRET must be at least 32 characters', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+  return secret;
+}
+
+function readRotatedPublicApiSigningSecret(request: Request) {
+  const configured = process.env.PUBLIC_API_SIGNING_SECRETS;
+  if (!configured) return undefined;
+
+  const secrets = parseSigningSecrets(configured);
+  const keyId = header(request, 'x-entitlement-key-id');
+  const productCode = request.method.toUpperCase() === 'GET' ? String(request.query?.productCode ?? '') : readBodyString(request.body, 'productCode');
+  const appVersion = readBodyString(request.body, 'appVersion') || readBodyString(readBodyObject(request.body, 'device'), 'appVersion');
+  const matched = secrets.find((item) =>
+    (!keyId || item.keyId === keyId) &&
+    (!item.productCode || !productCode || item.productCode === productCode) &&
+    (!item.appVersion || !appVersion || item.appVersion === appVersion),
+  );
+
+  if (!matched?.secret || matched.secret.length < 32) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, 'unknown request signing key', HttpStatus.UNAUTHORIZED);
+  }
+  return matched.secret;
+}
+
+function parseSigningSecrets(configured: string): PublicApiSigningSecret[] {
+  try {
+    const parsed = JSON.parse(configured) as PublicApiSigningSecret[] | Record<string, string>;
+    if (Array.isArray(parsed)) return parsed;
+    return Object.entries(parsed).map(([keyId, secret]) => ({ keyId, secret }));
+  } catch {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'PUBLIC_API_SIGNING_SECRETS is not valid JSON', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+function header(request: Request, name: string) {
+  const value = request.headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function readBodyString(body: unknown, key: string) {
+  const value = readBodyObject(body, key);
+  return typeof value === 'string' ? value : '';
+}
+
+function readBodyObject(body: unknown, key: string) {
+  if (!body || typeof body !== 'object') return undefined;
+  return (body as Record<string, unknown>)[key];
 }

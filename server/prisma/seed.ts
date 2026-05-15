@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { hashLicenseKey } from '../src/license/license-key';
 
 const prisma = new PrismaClient();
 
@@ -59,10 +60,10 @@ async function main() {
   }).catch(() => undefined);
 
   await prisma.license.upsert({
-    where: { licenseKey: 'DEMO-AAAA-BBBB-CCCC' },
+    where: { licenseKeyHash: hashLicenseKey('DEMO-AAAA-BBBB-CCCC') },
     update: {},
     create: {
-      licenseKey: 'DEMO-AAAA-BBBB-CCCC',
+      licenseKeyHash: hashLicenseKey('DEMO-AAAA-BBBB-CCCC'),
       productId: product.id,
       planId: plan.id,
       status: 'active',

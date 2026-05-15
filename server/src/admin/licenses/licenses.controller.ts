@@ -6,6 +6,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { CreateLicenseDto, UpdateLicenseStatusDto } from './licenses.dto';
+import { hashLicenseKey } from '../../license/license-key';
 
 @UseGuards(AdminAuthGuard)
 @Controller('/admin/licenses')
@@ -19,11 +20,12 @@ export class LicensesController {
   async create(@Body() dto: CreateLicenseDto) {
     const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
     const expireAt = dto.expireAt ? new Date(dto.expireAt) : new Date(Date.now() + (plan?.durationDays ?? 365) * 24 * 60 * 60 * 1000);
+    const plainLicenseKey = dto.licenseKey ?? this.generateLicenseKey();
     const license = await this.prisma.license.create({
       data: {
         productId: dto.productId,
         planId: dto.planId,
-        licenseKey: dto.licenseKey ?? this.generateLicenseKey(),
+        licenseKeyHash: hashLicenseKey(plainLicenseKey),
         expireAt,
         maxDevicesOverride: dto.maxDevicesOverride,
         featureFlagsOverride: dto.featureFlagsOverride as Prisma.InputJsonValue | undefined,
@@ -31,17 +33,19 @@ export class LicensesController {
       },
     });
     await this.audit.admin({ targetType: 'license', targetId: license.id, action: 'create', afterData: license });
-    return ok(license, 'created');
+    return ok({ ...this.publicLicense(license), licenseKey: plainLicenseKey }, 'created');
   }
 
   @Get()
   async list() {
-    return ok(await this.prisma.license.findMany({ include: { product: true, plan: true }, orderBy: { id: 'desc' } }));
+    const licenses = await this.prisma.license.findMany({ include: { product: true, plan: true }, orderBy: { id: 'desc' } });
+    return ok(licenses.map((license) => this.publicLicense(license)));
   }
 
   @Get(':id')
   async detail(@Param('id') id: string) {
-    return ok(await this.prisma.license.findUnique({ where: { id: Number(id) }, include: { product: true, plan: true, devices: true } }));
+    const license = await this.prisma.license.findUnique({ where: { id: Number(id) }, include: { product: true, plan: true, devices: true } });
+    return ok(license ? this.publicLicense(license) : null);
   }
 
   @Put(':id/status')
@@ -49,7 +53,7 @@ export class LicensesController {
     const before = await this.prisma.license.findUnique({ where: { id: Number(id) } });
     const license = await this.prisma.license.update({ where: { id: Number(id) }, data: { status: dto.status } });
     await this.audit.admin({ targetType: 'license', targetId: license.id, action: 'update_status', beforeData: before, afterData: license });
-    return ok(license);
+    return ok(this.publicLicense(license));
   }
 
   @Get(':id/devices')
@@ -58,6 +62,11 @@ export class LicensesController {
   }
 
   private generateLicenseKey() {
-    return `LIC-${randomBytes(3).toString('hex').toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
+    return `LIC-${randomBytes(6).toString('hex').toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}`;
+  }
+
+  private publicLicense<T extends { licenseKeyHash?: string }>(license: T) {
+    const { licenseKeyHash: _licenseKeyHash, ...publicLicense } = license;
+    return publicLicense;
   }
 }

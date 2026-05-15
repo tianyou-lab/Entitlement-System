@@ -1,4 +1,4 @@
-import { randomBytes, createHmac } from 'crypto';
+import { randomBytes } from 'crypto';
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { OfflinePackageStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
@@ -8,6 +8,8 @@ import { PublicApiRateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { RequestSignatureGuard } from '../../common/guards/request-signature.guard';
 import { ok } from '../../common/response';
 import { PrismaService } from '../../database/prisma.service';
+import { hashLicenseKey, legacyHashLicenseKey } from '../../license/license-key';
+import { assertOfflineSigningConfigured, signOfflinePackage, verifyOfflinePackage } from '../../license/offline-signature';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import {
   CreateCardKeyDto,
@@ -99,11 +101,11 @@ export class P2AdminController {
 
   @Post('offline-packages')
   async createOfflinePackage(@Body() dto: CreateOfflinePackageDto) {
+    assertOfflineSigningConfigured();
     const license = await this.prisma.license.findUnique({ where: { id: dto.licenseId }, include: { product: true, plan: true } });
     if (!license) throw new AppError(ErrorCode.LICENSE_NOT_FOUND, 'license not found');
     const payload = dto.payload ?? {
       licenseId: dto.licenseId,
-      licenseKey: license.licenseKey,
       productCode: license.product.productCode,
       planCode: license.plan.planCode,
       deviceId: dto.deviceId,
@@ -118,7 +120,7 @@ export class P2AdminController {
         deviceId: dto.deviceId,
         packageCode,
         payload: payload as Prisma.InputJsonValue,
-        signature: dto.signature ?? this.signOfflinePackage(packageCode, payload),
+        signature: signOfflinePackage(packageCode, payload),
         expireAt: new Date(dto.expireAt),
       },
     });
@@ -230,16 +232,12 @@ export class P2AdminController {
     if (dto.licenseId && dto.deviceId) return { licenseId: dto.licenseId, deviceId: dto.deviceId };
     if (!dto.licenseKey || !dto.deviceCode) throw new AppError(ErrorCode.BAD_REQUEST, 'licenseKey and deviceCode are required');
     const device = await this.prisma.device.findUnique({ where: { deviceCode: dto.deviceCode }, include: { license: true } });
-    if (!device || device.license.licenseKey !== dto.licenseKey) throw new AppError(ErrorCode.BAD_REQUEST, 'device not found for license');
+    if (!device || !licenseKeyMatchesStoredHash(dto.licenseKey, device.license.licenseKeyHash)) throw new AppError(ErrorCode.BAD_REQUEST, 'device not found for license');
     return { licenseId: device.licenseId, deviceId: device.id };
   }
 
   private randomCode(prefix: string) {
     return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}-${randomBytes(4).toString('hex').toUpperCase()}`;
-  }
-
-  private signOfflinePackage(packageCode: string, payload: Record<string, unknown>) {
-    return signOfflinePackage(packageCode, payload);
   }
 }
 
@@ -254,7 +252,7 @@ export class PublicOfflinePackageController {
     if (!offlinePackage || offlinePackage.status !== OfflinePackageStatus.active) throw new AppError(ErrorCode.LEASE_INVALID, 'offline package invalid');
     if (offlinePackage.expireAt.getTime() <= Date.now()) throw new AppError(ErrorCode.LEASE_EXPIRED, 'offline package expired');
     const payload = (dto.payload ?? offlinePackage.payload) as Record<string, unknown>;
-    if (dto.signature !== offlinePackage.signature || dto.signature !== signOfflinePackage(dto.packageCode, payload)) {
+    if (dto.signature !== offlinePackage.signature || !verifyOfflinePackage(dto.packageCode, payload, dto.signature)) {
       throw new AppError(ErrorCode.UNAUTHORIZED, 'invalid offline package signature');
     }
     return ok({ packageCode: offlinePackage.packageCode, payload, expireAt: offlinePackage.expireAt, licenseStatus: offlinePackage.license.status });
@@ -270,13 +268,12 @@ export class PublicDeviceUnbindController {
   async create(@Body() dto: CreateDeviceUnbindRequestDto) {
     if (!dto.licenseKey || !dto.deviceCode) throw new AppError(ErrorCode.BAD_REQUEST, 'licenseKey and deviceCode are required');
     const device = await this.prisma.device.findUnique({ where: { deviceCode: dto.deviceCode }, include: { license: true } });
-    if (!device || device.license.licenseKey !== dto.licenseKey) throw new AppError(ErrorCode.BAD_REQUEST, 'device not found for license');
+    if (!device || !licenseKeyMatchesStoredHash(dto.licenseKey, device.license.licenseKeyHash)) throw new AppError(ErrorCode.BAD_REQUEST, 'device not found for license');
     const request = await this.prisma.deviceUnbindRequest.create({ data: { licenseId: device.licenseId, deviceId: device.id, reason: dto.reason } });
     return ok(request, 'created');
   }
 }
 
-function signOfflinePackage(packageCode: string, payload: Record<string, unknown>) {
-  const secret = process.env.LEASE_SECRET ?? 'dev-lease-secret';
-  return createHmac('sha256', secret).update(`${packageCode}.${JSON.stringify(payload)}`).digest('base64url');
+function licenseKeyMatchesStoredHash(licenseKey: string, storedHash: string) {
+  return hashLicenseKey(licenseKey) === storedHash || legacyHashLicenseKey(licenseKey) === storedHash;
 }

@@ -44,6 +44,7 @@ npm --prefix demo-electron install
 export DATABASE_URL=postgresql://entitlement:entitlement@127.0.0.1:5432/entitlement?schema=public
 export JWT_SECRET=dev-jwt-secret
 export LEASE_SECRET=dev-lease-secret
+export LICENSE_KEY_HASH_SECRET=dev-license-key-hash-secret-change-in-production
 export PUBLIC_API_SIGNING_SECRET=dev-public-api-signing-secret
 export LEASE_TTL_MINUTES=120
 ```
@@ -95,7 +96,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec server
 
 生产环境使用 Prisma migration，迁移文件位于 `server/prisma/migrations/`。不要在生产环境直接使用 `db push`。
 
-生产环境必须使用高强度随机 `POSTGRES_PASSWORD`、`ADMIN_PASSWORD`、`JWT_SECRET`、`LEASE_SECRET` 和 `PUBLIC_API_SIGNING_SECRET`。
+生产环境必须使用高强度随机 `POSTGRES_PASSWORD`、`ADMIN_PASSWORD`、`JWT_SECRET`、`LEASE_SECRET`、`LICENSE_KEY_HASH_SECRET` 和 `PUBLIC_API_SIGNING_SECRET`。离线授权必须配置 Ed25519 `OFFLINE_LICENSE_PRIVATE_KEY` / `OFFLINE_LICENSE_PUBLIC_KEY`，请求签名密钥可通过 `PUBLIC_API_SIGNING_SECRETS` 按产品和版本轮换。
 
 常用生产辅助脚本：
 

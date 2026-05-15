@@ -129,7 +129,7 @@ model Plan {
 
 model License {
   id                     Int                   @id @default(autoincrement())
-  licenseKey             String                @unique @map("license_key") @db.VarChar(128)
+  licenseKeyHash         String                @unique @map("license_key_hash") @db.VarChar(128)
   productId              Int                   @map("product_id")
   planId                 Int                   @map("plan_id")
   status                 LicenseStatus         @default(active)

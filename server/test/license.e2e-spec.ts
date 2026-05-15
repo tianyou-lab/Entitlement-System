@@ -1,4 +1,6 @@
 import { createHmac } from 'crypto';
+import { hashLicenseKey } from '../src/license/license-key';
+import { signOfflinePackage } from '../src/license/offline-signature';
 import { INestApplication, HttpStatus, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DeviceStatus, LeaseStatus, LicenseStatus, PlanStatus, ProductStatus } from '@prisma/client';
@@ -59,7 +61,7 @@ function createPrismaStub() {
   };
   const license = {
     id: 1,
-    licenseKey: 'DEMO-AAAA-BBBB-CCCC',
+    licenseKeyHash: hashLicenseKey('DEMO-AAAA-BBBB-CCCC'),
     productId: product.id,
     planId: plan.id,
     status: LicenseStatus.active as LicenseStatus,
@@ -97,7 +99,6 @@ function createPrismaStub() {
   const deviceUnbindRequests: any[] = [];
   const offlinePayload = {
     licenseId: license.id,
-    licenseKey: license.licenseKey,
     productCode: product.productCode,
     planCode: plan.planCode,
     expireAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
@@ -110,7 +111,7 @@ function createPrismaStub() {
     deviceId: null,
     packageCode: 'OFFLINE-AAAA-BBBB',
     payload: offlinePayload,
-    signature: createHmac('sha256', process.env.LEASE_SECRET ?? 'dev-lease-secret').update(`OFFLINE-AAAA-BBBB.${JSON.stringify(offlinePayload)}`).digest('base64url'),
+    signature: signOfflinePackage('OFFLINE-AAAA-BBBB', offlinePayload),
     status: 'active',
     expireAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
@@ -125,7 +126,7 @@ function createPrismaStub() {
     },
     license: {
       findUnique: jest.fn(({ where, include }) => {
-        const found = where.licenseKey === license.licenseKey || where.id === license.id ? license : null;
+        const found = where.licenseKeyHash === license.licenseKeyHash || where.id === license.id ? license : null;
         if (!found) return Promise.resolve(null);
         return Promise.resolve(include ? { ...found, product, plan } : found);
       }),

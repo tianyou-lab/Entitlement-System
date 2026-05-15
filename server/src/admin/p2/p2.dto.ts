@@ -111,10 +111,6 @@ export class CreateOfflinePackageDto {
   @IsObject()
   payload?: Record<string, unknown>;
 
-  @IsOptional()
-  @IsString()
-  signature?: string;
-
   @IsString()
   expireAt: string;
 }

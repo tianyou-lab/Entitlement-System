@@ -1,6 +1,7 @@
 import { LicenseStatus, PlanStatus, ProductStatus } from '@prisma/client';
 import { ErrorCode } from '../common/error-codes';
 import { PlanService } from '../plan/plan.service';
+import { hashLicenseKey } from './license-key';
 import { LicenseService } from './license.service';
 
 function createService(license: any) {
@@ -11,7 +12,7 @@ function createService(license: any) {
 
 const validLicense = {
   id: 1,
-  licenseKey: 'LIC-1',
+  licenseKeyHash: hashLicenseKey('LIC-1'),
   status: LicenseStatus.active,
   expireAt: new Date(Date.now() + 60_000),
   featureFlagsOverride: { publish: false },
