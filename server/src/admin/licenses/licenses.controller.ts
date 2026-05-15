@@ -66,7 +66,8 @@ export class LicensesController {
   }
 
   private publicLicense<T extends { licenseKeyHash?: string }>(license: T) {
-    const { licenseKeyHash: _licenseKeyHash, ...publicLicense } = license;
+    const publicLicense = { ...license };
+    delete publicLicense.licenseKeyHash;
     return publicLicense;
   }
 }
