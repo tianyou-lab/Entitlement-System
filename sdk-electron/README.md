@@ -2,18 +2,16 @@
 
 ## Install
 
-当前阶段使用仓库本地包：
+通过 npm 安装：
 
 ```bash
-npm install ../sdk-electron
+npm install @liuxing5188/sdk-electron
 ```
-
-正式交付阶段建议通过 GitHub Release artifact、npm tarball 或私有 npm registry 发布。
 
 ## Configure
 
 ```ts
-import { LicenseClient } from '@entitlement/sdk-electron';
+import { LicenseClient } from '@liuxing5188/sdk-electron';
 
 const client = new LicenseClient({
   apiBaseUrl: 'http://127.0.0.1:3000',

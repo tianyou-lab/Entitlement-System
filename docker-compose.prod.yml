@@ -1,4 +1,20 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      admin:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -73,3 +89,5 @@ services:
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

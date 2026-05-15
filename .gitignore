@@ -4,6 +4,7 @@ dist/
 .env.production
 *.log
 coverage/
+backups/
 .claude/
 .vite/
 /package-lock.json
