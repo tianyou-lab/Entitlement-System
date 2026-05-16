@@ -92,6 +92,25 @@ function createPrismaStub() {
   };
   const devices: any[] = [];
   const leases: any[] = [];
+  const licenses = [license];
+  const cardKeys: any[] = [{
+    id: 1,
+    tenantId: null,
+    productId: product.id,
+    planId: plan.id,
+    channelId: null,
+    licenseId: null,
+    cardKey: 'YK7D4EB9655EFDB25D47776DC8098A53EE',
+    batchCode: null,
+    status: 'unused',
+    expireAt: null,
+    redeemedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    product,
+    plan,
+    license: null,
+  }];
   const activationLogs: any[] = [];
   const heartbeatLogs: any[] = [];
   const auditLogs: any[] = [];
@@ -126,14 +145,53 @@ function createPrismaStub() {
     },
     license: {
       findUnique: jest.fn(({ where, include }) => {
-        const found = where.licenseKeyHash === license.licenseKeyHash || where.id === license.id ? license : null;
+        const found = licenses.find((item) => where.licenseKeyHash === item.licenseKeyHash || where.id === item.id) ?? null;
         if (!found) return Promise.resolve(null);
         return Promise.resolve(include ? { ...found, product, plan } : found);
       }),
+      create: jest.fn(({ data, include }) => {
+        const created = {
+          id: licenses.length + 1,
+          status: LicenseStatus.active,
+          customerId: null,
+          maxDevicesOverride: null,
+          maxConcurrencyOverride: null,
+          featureFlagsOverride: null,
+          notes: null,
+          issuedAt: new Date(),
+          activateAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+          product,
+          plan,
+        };
+        licenses.push(created);
+        return Promise.resolve(include ? created : { ...created, product: undefined, plan: undefined });
+      }),
       update: jest.fn(({ where, data }) => {
-        if (where.id !== license.id) return Promise.resolve(null);
-        Object.assign(license, data, { updatedAt: new Date() });
-        return Promise.resolve({ ...license, product, plan });
+        const found = licenses.find((item) => item.id === where.id);
+        if (!found) return Promise.resolve(null);
+        Object.assign(found, data, { updatedAt: new Date() });
+        return Promise.resolve({ ...found, product, plan });
+      }),
+    },
+    cardKey: {
+      findUnique: jest.fn(({ where, include }) => {
+        const cardKey = cardKeys.find((item) => item.cardKey === where.cardKey || item.id === where.id) ?? null;
+        if (!cardKey) return Promise.resolve(null);
+        return Promise.resolve({
+          ...cardKey,
+          product: include?.product ? product : cardKey.product,
+          plan: include?.plan ? plan : cardKey.plan,
+          license: cardKey.licenseId ? { ...licenses.find((item) => item.id === cardKey.licenseId), product, plan } : null,
+        });
+      }),
+      update: jest.fn(({ where, data }) => {
+        const cardKey = cardKeys.find((item) => item.id === where.id || item.cardKey === where.cardKey);
+        Object.assign(cardKey, data, { updatedAt: new Date() });
+        if (data.licenseId) cardKey.license = licenses.find((item) => item.id === data.licenseId) ?? null;
+        return Promise.resolve(cardKey);
       }),
     },
     device: {
@@ -270,9 +328,10 @@ function createPrismaStub() {
         return Promise.resolve(auditLog);
       }),
     },
+    $transaction: jest.fn((callback) => callback(prisma)),
   };
 
-  return { prisma, license, devices, leases, policy, offlinePackage, riskEvents, deviceUnbindRequests, auditLogs };
+  return { prisma, license, licenses, cardKeys, devices, leases, policy, offlinePackage, riskEvents, deviceUnbindRequests, auditLogs };
 }
 
 describe('License API (e2e)', () => {
@@ -378,6 +437,22 @@ describe('License API (e2e)', () => {
 
     expect(store.devices[0].status).toBe(DeviceStatus.removed);
     expect(store.leases.every((lease) => lease.status !== LeaseStatus.active)).toBe(true);
+  });
+
+  it('redeems a card key during activation', async () => {
+    const res = await signedPost('/api/v1/license/activate', {
+      productCode: 'demo_app',
+      licenseKey: 'YK7D4EB9655EFDB25D47776DC8098A53EE',
+      device: devicePayload('card-device-1'),
+    })
+      .expect(HttpStatus.CREATED)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ code: ErrorCode.OK, message: 'activated', data: { licenseStatus: LicenseStatus.active } });
+      });
+
+    expect(res.body.data.leaseToken).toBeTruthy();
+    expect(store.cardKeys[0]).toMatchObject({ status: 'redeemed', licenseId: 2 });
+    expect(store.licenses[1]).toMatchObject({ id: 2, productId: 1, planId: 1 });
   });
 
   it('rejects verify when the license is banned after activation', async () => {
