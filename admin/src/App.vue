@@ -8,8 +8,7 @@ import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdm
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
   { id: 'products', label: '产品管理', summary: '维护产品编码、名称与启停状态', icon: Box },
-  { id: 'cardKeys', label: '卡密管理', summary: '按产品和类型生成、复制、导出卡密', icon: Key },
-  { id: 'licenses', label: '授权管理', summary: '生成、复制和批量封禁授权码', icon: Key },
+  { id: 'cardKeys', label: '授权管理', summary: '按产品和时长类型生成、复制、导出授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
   { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
@@ -20,7 +19,7 @@ const navItems = [
   { id: 'logs', label: '运行日志', summary: '审计激活、心跳和后台操作记录', icon: Document },
 ] as const;
 
-type AdminSection = typeof navItems[number]['id'] | 'plans' | 'admins' | 'channels';
+type AdminSection = typeof navItems[number]['id'] | 'plans' | 'admins' | 'channels' | 'licenses';
 const githubBaseUrl = 'https://github.com/tianyou-lab/Entitlement-System';
 const sdkResources = [
   { name: '完整源码 ZIP', description: '包含 Server、Admin、License UI、Electron/C++/.NET SDK 和 Demo', url: `${githubBaseUrl}/archive/refs/heads/main.zip`, action: '下载 ZIP' },
@@ -358,7 +357,7 @@ function exportCardKeys(rows: CardKey[], emptyMessage: string, scope: 'all' | 's
     ElMessage.warning(emptyMessage);
     return;
   }
-  const headers = ['ID', '卡密', '产品', '套餐', '渠道', '批次', '状态', '到期时间', '关联授权'];
+  const headers = ['ID', '授权码', '产品', '类型', '渠道', '批次', '状态', '到期时间', '关联授权'];
   const csvRows = cardKeyExportRows(rows).map((row) => [
     row.id,
     row.cardKey,
@@ -371,7 +370,7 @@ function exportCardKeys(rows: CardKey[], emptyMessage: string, scope: 'all' | 's
     row.license,
   ]);
   downloadCsv(`card-keys-${scope}-${new Date().toISOString().slice(0, 10)}.csv`, [headers, ...csvRows]);
-  ElMessage.success(`已导出 ${rows.length} 个卡密`);
+  ElMessage.success(`已导出 ${rows.length} 个授权码`);
 }
 
 function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
@@ -414,11 +413,11 @@ async function batchBanLicenses() {
 async function batchDisableCardKeys() {
   if (!selectedCardKeys.value.length) return;
   try {
-    await ElMessageBox.confirm(`确认禁用选中的 ${selectedCardKeys.value.length} 个卡密？`, '批量禁用确认', { type: 'warning' });
+    await ElMessageBox.confirm(`确认禁用选中的 ${selectedCardKeys.value.length} 个授权码？`, '批量禁用确认', { type: 'warning' });
   } catch {
     return;
   }
-  await withMessage('选中卡密已禁用', async () => {
+  await withMessage('选中授权码已禁用', async () => {
     await Promise.all(selectedCardKeys.value.map((cardKey) => updateCardKeyStatus(cardKey.id, 'disabled')));
     selectedCardKeys.value = [];
     await refreshAll();
@@ -475,7 +474,7 @@ async function changeChannelStatus(row: Channel, status: Channel['status']) {
 }
 
 async function submitCardKey() {
-  await withMessage('卡密已创建', async () => {
+  await withMessage('授权码已创建', async () => {
     await createCardKey({
       productId: cardKeyForm.productId,
       durationType: cardKeyDurationType.value,
@@ -490,7 +489,7 @@ async function submitCardKey() {
 }
 
 async function changeCardKeyStatus(row: CardKey, status: CardKey['status']) {
-  await withMessage('卡密状态已更新', async () => {
+  await withMessage('授权码状态已更新', async () => {
     await updateCardKeyStatus(row.id, status);
     await refreshAll();
   });
@@ -1150,12 +1149,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'cardKeys'" class="section-page">
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
-            <div><strong>生成产品卡密</strong><span class="muted">选择产品和卡密类型，系统自动使用对应默认套餐</span></div>
+            <div><strong>生成授权码</strong><span class="muted">选择产品和授权类型，按时、天、周、月、季、年生成授权码</span></div>
             <div class="toolbar-actions">
-              <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制卡密')">复制全部</el-button>
-              <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的卡密')">复制选中</el-button>
-              <el-button :icon="Download" :disabled="!cardKeys.length" @click="exportCardKeys(cardKeys, '暂无可导出卡密', 'all')">导出全部</el-button>
-              <el-button :icon="Download" :disabled="!selectedCardKeys.length" @click="exportCardKeys(selectedCardKeys, '请先勾选要导出的卡密', 'selected')">导出选中</el-button>
+              <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制授权码')">复制全部</el-button>
+              <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的授权码')">复制选中</el-button>
+              <el-button :icon="Download" :disabled="!cardKeys.length" @click="exportCardKeys(cardKeys, '暂无可导出授权码', 'all')">导出全部</el-button>
+              <el-button :icon="Download" :disabled="!selectedCardKeys.length" @click="exportCardKeys(selectedCardKeys, '请先勾选要导出的授权码', 'selected')">导出选中</el-button>
               <el-button type="danger" plain :disabled="!selectedCardKeys.length" @click="batchDisableCardKeys">批量禁用</el-button>
             </div>
           </div>
@@ -1165,20 +1164,20 @@ async function withMessage(message: string, action: () => Promise<void>) {
                 <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="卡密类型">
+            <el-form-item label="授权类型">
               <el-select v-model="cardKeyDurationType" style="width: 100%">
                 <el-option v-for="option in cardKeyDurationOptions" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
             </el-form-item>
-            <el-form-item label="自定义卡密（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
+            <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
             <el-form-item label="批次"><el-input v-model="cardKeyForm.batchCode" /></el-form-item>
             <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
-            <el-button type="primary" native-type="submit">生成卡密</el-button>
+            <el-button type="primary" native-type="submit">生成授权码</el-button>
           </el-form>
         </div>
-        <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无卡密，点击上方按钮生成" @selection-change="handleCardKeySelection">
+        <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无授权码，点击上方按钮生成" @selection-change="handleCardKeySelection">
           <el-table-column type="selection" width="44" fixed />
-          <el-table-column prop="cardKey" label="卡密" min-width="320">
+          <el-table-column prop="cardKey" label="授权码" min-width="320">
             <template #default="{ row }">
               <div class="key-cell">
                 <span class="key-text">{{ row.cardKey || '-' }}</span>
@@ -1187,7 +1186,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
           <el-table-column prop="product.productCode" label="产品" width="130" />
-          <el-table-column prop="plan.planCode" label="套餐" width="130" />
+          <el-table-column prop="plan.name" label="类型" width="130" />
           <el-table-column prop="channel.name" label="渠道" width="140" />
           <el-table-column prop="batchCode" label="批次" width="140" />
           <el-table-column prop="expireAt" label="到期时间" min-width="190" sortable />
