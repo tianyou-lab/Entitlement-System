@@ -1,4 +1,4 @@
-import type { ActivationLog, AdminAccount, ApiResponse, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, LoginResult, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import type { ActivationLog, AdminAccount, ApiResponse, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, LoginResult, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, UpdateProductInput, VersionPolicy } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const TOKEN_KEY = 'entitlement_admin_token';
@@ -47,6 +47,14 @@ export function listProducts() {
 
 export function createProduct(input: CreateProductInput) {
   return request<Product>('/admin/products', { method: 'POST', body: input });
+}
+
+export function updateProduct(id: number, input: UpdateProductInput) {
+  return request<Product>(`/admin/products/${id}`, { method: 'PUT', body: input });
+}
+
+export function deleteProduct(id: number) {
+  return request<{ deleted: boolean }>(`/admin/products/${id}`, { method: 'DELETE' });
 }
 
 export function listPlans() {

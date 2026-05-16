@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
@@ -63,11 +63,14 @@ const selectedCardKeys = ref<CardKey[]>([]);
 const darkMode = ref(false);
 const activeSection = ref<AdminSection>('console');
 const activeLogType = ref<'activation' | 'heartbeat' | 'audit'>('activation');
+const productEditorVisible = ref(false);
+const editingProductId = ref<number | null>(null);
 
 const loginForm = reactive({ username: 'admin', password: '' });
 const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const adminForm = reactive<CreateAdminInput>({ username: '', password: '', roleCode: 'viewer', tenantId: undefined });
 const productForm = reactive<CreateProductInput>({ productCode: generateProductKey(), name: '', description: '' });
+const productEditForm = reactive({ name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
@@ -282,6 +285,48 @@ async function submitProduct() {
     refreshProductKey();
     productForm.name = '';
     productForm.description = '';
+    await refreshAll();
+  });
+}
+
+function openProductEditor(product: Product) {
+  editingProductId.value = product.id;
+  productEditForm.name = product.name;
+  productEditForm.description = product.description ?? '';
+  productEditorVisible.value = true;
+}
+
+async function submitProductEdit() {
+  if (!editingProductId.value) return;
+  await withMessage('产品已更新', async () => {
+    await updateProduct(editingProductId.value as number, { name: productEditForm.name, description: productEditForm.description });
+    productEditorVisible.value = false;
+    editingProductId.value = null;
+    await refreshAll();
+  });
+}
+
+async function toggleProductStatus(product: Product) {
+  const nextStatus = product.status === 'active' ? 'inactive' : 'active';
+  const message = nextStatus === 'active' ? '产品已启用' : '产品已停用';
+  await withMessage(message, async () => {
+    await updateProduct(product.id, { status: nextStatus });
+    await refreshAll();
+  });
+}
+
+async function removeProduct(product: Product) {
+  try {
+    await ElMessageBox.confirm(`确认移除产品「${product.name}」？存在套餐、授权码、卡密等关联数据时将无法移除。`, '移除产品', {
+      confirmButtonText: '移除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  await withMessage('产品已移除', async () => {
+    await deleteProduct(product.id);
     await refreshAll();
   });
 }
@@ -782,18 +827,18 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <div class="toolbar">
             <div><strong>创建产品</strong><span class="muted">产品 Key 自动生成，用于客户端 productCode 配置</span></div>
           </div>
-          <el-form class="product-form-grid" label-position="top" @submit.prevent="submitProduct">
-            <el-form-item label="产品名称">
-              <el-input v-model="productForm.name" placeholder="Demo App" />
-            </el-form-item>
+          <el-form class="product-form-grid product-create-form" label-position="top" @submit.prevent="submitProduct">
             <el-form-item label="产品 Key">
               <div class="product-key-control">
                 <el-input v-model="productForm.productCode" readonly />
                 <el-button @click="refreshProductKey">重新生成</el-button>
               </div>
             </el-form-item>
-            <el-form-item class="full" label="描述">
-              <el-input v-model="productForm.description" />
+            <el-form-item label="产品名称">
+              <el-input v-model="productForm.name" placeholder="Demo App" />
+            </el-form-item>
+            <el-form-item label="产品描述">
+              <el-input v-model="productForm.description" placeholder="产品用途或接入说明" />
             </el-form-item>
             <div class="form-actions">
               <el-button type="primary" native-type="submit">创建产品</el-button>
@@ -802,12 +847,42 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="products" style="margin-top: 18px">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="productCode" label="产品 Key" />
+          <el-table-column label="产品 Key" min-width="380">
+            <template #default="{ row }">
+              <span class="product-key-value">{{ row.productCode }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="name" label="名称" />
+          <el-table-column prop="description" label="描述" min-width="180" />
           <el-table-column label="状态" width="120">
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
+          <el-table-column label="管理" width="260" fixed="right">
+            <template #default="{ row }">
+              <div class="row-actions">
+                <el-button size="small" @click="openProductEditor(row)">编辑</el-button>
+                <el-button size="small" :type="row.status === 'active' ? 'warning' : 'success'" plain @click="toggleProductStatus(row)">
+                  {{ row.status === 'active' ? '停用' : '启用' }}
+                </el-button>
+                <el-button size="small" type="danger" plain @click="removeProduct(row)">移除</el-button>
+              </div>
+            </template>
+          </el-table-column>
         </el-table>
+        <el-dialog v-model="productEditorVisible" title="编辑产品" width="520px">
+          <el-form label-position="top" @submit.prevent="submitProductEdit">
+            <el-form-item label="产品名称">
+              <el-input v-model="productEditForm.name" />
+            </el-form-item>
+            <el-form-item label="产品描述">
+              <el-input v-model="productEditForm.description" type="textarea" :rows="4" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="productEditorVisible = false">取消</el-button>
+            <el-button type="primary" @click="submitProductEdit">保存</el-button>
+          </template>
+        </el-dialog>
       </section>
 
       <section v-if="activeSection === 'plans'" class="section-page">

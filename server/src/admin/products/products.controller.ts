@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ok } from '../../common/response';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
@@ -22,5 +22,11 @@ export class ProductsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return ok(await this.prisma.product.update({ where: { id: Number(id) }, data: dto }));
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    await this.prisma.product.delete({ where: { id: Number(id) } });
+    return ok({ deleted: true }, 'deleted');
   }
 }

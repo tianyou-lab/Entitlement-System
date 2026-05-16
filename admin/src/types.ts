@@ -246,6 +246,12 @@ export interface CreateProductInput {
   description?: string;
 }
 
+export interface UpdateProductInput {
+  name?: string;
+  status?: Product['status'];
+  description?: string;
+}
+
 export interface CreateAdminInput {
   username: string;
   password: string;
