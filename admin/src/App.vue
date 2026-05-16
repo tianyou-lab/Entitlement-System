@@ -9,13 +9,14 @@ const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
   { id: 'products', label: '产品管理', summary: '维护产品编码、名称与启停状态', icon: Box },
   { id: 'plans', label: '套餐配置', summary: '配置授权周期、设备数和功能开关', icon: Grid },
-  { id: 'licenses', label: '授权卡密', summary: '生成、复制和批量封禁授权码', icon: Key },
+  { id: 'licenses', label: '授权管理', summary: '生成、复制和批量封禁授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
   { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
   { id: 'monitoring', label: '监控告警', summary: '查看 API 请求、失败率、延迟和数据库运行指标', icon: TrendCharts },
   { id: 'admins', label: '管理员', summary: '创建运营账号并维护角色和启停状态', icon: User },
-  { id: 'channels', label: '渠道与卡密', summary: '管理租户、渠道和批次卡密库存', icon: Tickets },
+  { id: 'channels', label: '渠道管理', summary: '管理租户、渠道和代理商资料', icon: Tickets },
+  { id: 'cardKeys', label: '卡密库存', summary: '生成、复制、导出和禁用批次卡密库存', icon: Key },
   { id: 'offline', label: '离线与解绑', summary: '创建离线授权包并审核解绑申请', icon: Connection },
   { id: 'protectors', label: '保护器适配', summary: '维护加壳和保护器适配器配置', icon: Cpu },
   { id: 'sdk', label: 'SDK 接入', summary: '下载客户端 SDK 并查看 Electron、C++、.NET 接入步骤', icon: Download },
@@ -1132,7 +1133,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
+      </section>
 
+      <section v-if="activeSection === 'cardKeys'" class="section-page">
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
             <div><strong>生成卡密</strong><span class="muted">适合渠道批次发放，可留空自动生成卡密串</span></div>
