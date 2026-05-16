@@ -234,6 +234,16 @@ button, input, textarea { font: inherit; }
 .form-actions { display: flex; justify-content: flex-end; }
 .product-key-value { display: inline-block; min-width: 36ch; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; color: #0f172a; }
 .product-column-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-config-panel { padding: 18px 22px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; }
+.client-config-list { display: grid; gap: 12px; }
+.client-config-item { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.client-config-meta span,
+.client-config-values label { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+.client-config-meta strong { display: block; margin: 8px 0 6px; color: #0e1726; font-size: 20px; }
+.client-config-meta small { color: var(--muted-2); overflow-wrap: anywhere; }
+.client-config-values { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 10px; align-items: center; }
+.client-config-values code { padding: 6px 8px; border-radius: 6px; background: #e8f1fb; color: #1557b0; font-size: 12px; overflow-wrap: anywhere; }
+.client-config-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .row-actions { display: flex; align-items: center; gap: 8px; }
 .full { grid-column: 1 / -1; }
 .muted { color: var(--muted); }
@@ -313,6 +323,13 @@ button, input, textarea { font: inherit; }
 .admin-shell.dark .config-baseline span,
 .admin-shell.dark .config-baseline small { color: var(--muted); }
 .admin-shell.dark .inline-code { background: #172438; color: #93c5fd; }
+.admin-shell.dark .product-config-panel,
+.admin-shell.dark .client-config-item { background: var(--surface-soft); border-color: var(--line); }
+.admin-shell.dark .client-config-values code { background: #172438; color: #93c5fd; }
+.admin-shell.dark .client-config-meta strong { color: #f8fafc; }
+.admin-shell.dark .client-config-meta span,
+.admin-shell.dark .client-config-values label,
+.admin-shell.dark .client-config-meta small { color: var(--muted); }
 .admin-shell.dark .error-list div { background: rgba(127, 29, 29, .2); }
 .admin-shell.dark .sdk-card,
 .admin-shell.dark .doc-panel { background: var(--surface-soft); border-color: var(--line); }
@@ -337,6 +354,8 @@ button, input, textarea { font: inherit; }
   .form-grid, .card-key-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-key-product, .card-key-mini, .card-key-custom, .card-key-submit { grid-column: span 1; }
   .product-form-grid { grid-template-columns: minmax(180px, .7fr) minmax(280px, 1fr) auto; }
+  .client-config-item { grid-template-columns: 1fr; }
+  .client-config-actions { justify-content: flex-start; }
   .form-actions { justify-content: flex-start; }
 }
 
@@ -357,6 +376,7 @@ button, input, textarea { font: inherit; }
   .card-key-product, .card-key-mini, .card-key-custom, .card-key-submit { grid-column: 1 / -1; }
   .form-actions { justify-content: flex-start; }
   .product-key-value { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .client-config-values { grid-template-columns: 1fr; }
   .row-actions { flex-wrap: wrap; }
   .sdk-card { flex-direction: column; }
   .section-heading { padding-bottom: 14px; }

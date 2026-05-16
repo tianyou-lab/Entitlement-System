@@ -32,6 +32,14 @@ export interface Product {
   name: string;
   status: 'active' | 'inactive';
   description?: string;
+  requestSigningSecrets?: ProductRequestSigningSecret[];
+}
+
+export interface ProductRequestSigningSecret {
+  keyId?: string;
+  productCode: string;
+  appVersion: string;
+  requestSigningSecret: string;
 }
 
 export interface Plan {

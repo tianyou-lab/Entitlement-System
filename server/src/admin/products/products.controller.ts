@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { AppError } from '../../common/errors';
+import { ErrorCode } from '../../common/error-codes';
 import { ok } from '../../common/response';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
@@ -16,7 +18,19 @@ export class ProductsController {
 
   @Get()
   async list() {
-    return ok(await this.prisma.product.findMany({ orderBy: { id: 'desc' } }));
+    const products = await this.prisma.product.findMany({ orderBy: { id: 'desc' } });
+    const signingSecrets = readPublicApiSigningSecrets();
+    return ok(products.map((product) => ({
+      ...product,
+      requestSigningSecrets: signingSecrets
+        .filter((item) => item.productCode === product.productCode)
+        .map((item) => ({
+          keyId: item.keyId,
+          productCode: item.productCode,
+          appVersion: item.appVersion,
+          requestSigningSecret: item.secret,
+        })),
+    })));
   }
 
   @Put(':id')
@@ -50,5 +64,25 @@ export class ProductsController {
       await tx.product.delete({ where: { id: productId } });
     });
     return ok({ deleted: true }, 'deleted');
+  }
+}
+
+interface PublicApiSigningSecret {
+  keyId?: string;
+  productCode?: string;
+  appVersion?: string;
+  secret: string;
+}
+
+function readPublicApiSigningSecrets() {
+  const configured = process.env.PUBLIC_API_SIGNING_SECRETS;
+  if (!configured) return [] as PublicApiSigningSecret[];
+
+  try {
+    const parsed = JSON.parse(configured) as PublicApiSigningSecret[] | Record<string, string>;
+    if (Array.isArray(parsed)) return parsed;
+    return Object.entries(parsed).map(([keyId, secret]) => ({ keyId, productCode: undefined, appVersion: undefined, secret }));
+  } catch {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'PUBLIC_API_SIGNING_SECRETS is not valid JSON', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }

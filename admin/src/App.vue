@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
 import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
@@ -104,6 +104,10 @@ const activeOfflinePackages = computed(() => offlinePackages.value.filter((item)
 const forcedUpgradePolicies = computed(() => versionPolicies.value.filter((policy) => policy.forceUpgrade).length);
 const requestFailureRate = computed(() => monitoringMetrics.value.api.requests.failureRate);
 const signingMode = computed(() => '产品/版本级密钥');
+const clientApiBaseUrl = computed(() => {
+  const configured = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  return (configured ? new URL(configured, window.location.origin).toString() : window.location.origin).replace(/\/$/, '');
+});
 const consoleHealthItems = computed(() => [
   {
     label: '产品版本策略覆盖',
@@ -456,6 +460,20 @@ async function copyText(value?: string) {
     document.body.removeChild(textarea);
   }
   ElMessage.success('已复制到剪贴板');
+}
+
+function clientConfig(product: Product, signingSecret: ProductRequestSigningSecret) {
+  return {
+    apiBaseUrl: clientApiBaseUrl.value,
+    productCode: product.productCode,
+    appVersion: signingSecret.appVersion,
+    heartbeatIntervalMs: 30000,
+    requestSigningSecret: signingSecret.requestSigningSecret,
+  };
+}
+
+function clientConfigJson(product: Product, signingSecret: ProductRequestSigningSecret) {
+  return JSON.stringify(clientConfig(product, signingSecret), null, 2);
 }
 
 function cardKeyExportRows(rows: CardKey[]) {
@@ -1006,14 +1024,58 @@ async function withMessage(message: string, action: () => Promise<void>) {
           </el-form>
         </div>
         <el-table :data="products" style="margin-top: 18px">
+          <el-table-column type="expand" width="52">
+            <template #default="{ row }">
+              <div class="product-config-panel">
+                <div class="toolbar">
+                  <div>
+                    <strong>Win 客户端接入配置</strong>
+                    <span class="muted">复制后放入打包版 Electron resources/entitlement-client.config.json</span>
+                  </div>
+                  <el-button size="small" @click="copyText(row.productCode)">复制产品 Key</el-button>
+                </div>
+                <div v-if="row.requestSigningSecrets?.length" class="client-config-list">
+                  <article v-for="secret in row.requestSigningSecrets" :key="secret.keyId ?? `${secret.productCode}-${secret.appVersion}`" class="client-config-item">
+                    <div class="client-config-meta">
+                      <span>匹配版本</span>
+                      <strong>{{ secret.appVersion }}</strong>
+                      <small>{{ secret.keyId ?? `${row.productCode}-${secret.appVersion}` }}</small>
+                    </div>
+                    <div class="client-config-values">
+                      <label>productCode</label>
+                      <code>{{ row.productCode }}</code>
+                      <label>requestSigningSecret</label>
+                      <code>{{ secret.requestSigningSecret }}</code>
+                    </div>
+                    <div class="client-config-actions">
+                      <el-button size="small" @click="copyText(secret.appVersion)">复制版本</el-button>
+                      <el-button size="small" @click="copyText(secret.requestSigningSecret)">复制 secret</el-button>
+                      <el-button size="small" type="primary" @click="copyText(clientConfigJson(row, secret))">复制完整 JSON</el-button>
+                    </div>
+                  </article>
+                </div>
+                <el-alert v-else title="当前产品没有匹配的 PUBLIC_API_SIGNING_SECRETS 条目" type="warning" :closable="false" />
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column label="产品 Key" min-width="380">
             <template #default="{ row }">
-              <span class="product-key-value">{{ row.productCode }}</span>
+              <div class="key-cell">
+                <span class="product-key-value">{{ row.productCode }}</span>
+                <el-button size="small" @click="copyText(row.productCode)">复制</el-button>
+              </div>
             </template>
           </el-table-column>
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="description" label="描述" min-width="180" />
+          <el-table-column label="客户端配置" width="140">
+            <template #default="{ row }">
+              <el-tag :type="row.requestSigningSecrets?.length ? 'success' : 'warning'">
+                {{ row.requestSigningSecrets?.length ? `${row.requestSigningSecrets.length} 个版本` : '未配置' }}
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="120">
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
