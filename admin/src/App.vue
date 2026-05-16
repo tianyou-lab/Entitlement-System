@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceBindingPolicy, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import { Bell, Box, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createLicense, createProduct, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDevices, listHeartbeatLogs, listLicenses, listPlans, listProducts, listRiskEvents, listTenants, listVersionPolicies, login, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateProduct, updateRiskEventStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateLicenseInput, CreateProductInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceBindingPolicy, HeartbeatLog, License, MonitoringMetrics, Plan, Product, ProductRequestSigningSecret, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
@@ -13,8 +13,6 @@ const navItems = [
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
   { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
   { id: 'monitoring', label: '监控告警', summary: '查看 API 请求、失败率、延迟和数据库运行指标', icon: TrendCharts },
-  { id: 'offline', label: '离线与解绑', summary: '创建离线授权包并审核解绑申请', icon: Connection },
-  { id: 'protectors', label: '保护器适配', summary: '维护加壳和保护器适配器配置', icon: Cpu },
   { id: 'sdk', label: 'SDK 接入', summary: '下载客户端 SDK 并查看 Electron、C++、.NET 接入步骤', icon: Download },
   { id: 'logs', label: '运行日志', summary: '审计激活、心跳和后台操作记录', icon: Document },
 ] as const;
@@ -56,12 +54,9 @@ const versionPolicies = ref<VersionPolicy[]>([]);
 const tenants = ref<Tenant[]>([]);
 const channels = ref<Channel[]>([]);
 const cardKeys = ref<CardKey[]>([]);
-const offlinePackages = ref<OfflinePackage[]>([]);
 const riskEvents = ref<RiskEvent[]>([]);
 const riskSummary = ref<RiskSummary>({ total: 0, open: 0, high: 0, resolved: 0 });
 const monitoringMetrics = ref<MonitoringMetrics>(emptyMonitoringMetrics());
-const unbindRequests = ref<DeviceUnbindRequest[]>([]);
-const protectorAdapters = ref<ProtectorAdapter[]>([]);
 const selectedLicenses = ref<License[]>([]);
 const selectedCardKeys = ref<CardKey[]>([]);
 const darkMode = ref(false);
@@ -86,10 +81,7 @@ const cardKeyDurationHours = ref(1);
 const cardKeyMaxDevices = ref(1);
 const cardKeyMaxConcurrency = ref(1);
 const cardKeyDeviceBindingPolicy = ref<DeviceBindingPolicy>('deny_new');
-const offlinePackageForm = reactive<CreateOfflinePackageInput>({ tenantId: undefined, licenseId: 0, deviceId: undefined, packageCode: '', expireAt: nextYearIso() });
 const riskEventForm = reactive<CreateRiskEventInput>({ tenantId: undefined, licenseId: undefined, deviceId: undefined, eventType: 'manual_review', severity: 'medium', summary: '' });
-const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 0, deviceId: 0, reason: '' });
-const protectorAdapterForm = reactive<CreateProtectorAdapterInput>({ tenantId: undefined, productId: undefined, adapterCode: '', name: '', notes: '' });
 
 const isAuthenticated = computed(() => Boolean(token.value));
 const activeLicenses = computed(() => licenses.value.filter((license) => license.status === 'active').length);
@@ -99,14 +91,12 @@ const productNameColumnWidth = computed(() => {
   const longestNameLength = Math.max(0, ...cardKeys.value.map((cardKey) => cardKey.product?.name?.length ?? 0));
   return Math.min(150, Math.max(90, longestNameLength * 14 + 42));
 });
-const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'active').length);
+const onlineDevices = computed(() => devices.value.filter((device) => device.onlineStatus === 'online').length);
 const openRisks = computed(() => riskSummary.value.open);
 const activeNavItem = computed(() => navItems.find((item) => item.id === activeSection.value) ?? navItems[0]);
 const topErrorCodes = computed(() => Object.entries(monitoringMetrics.value.api.errorCodes).sort((left, right) => right[1] - left[1]).slice(0, 8));
 const activeProducts = computed(() => products.value.filter((product) => product.status === 'active').length);
 const productsMissingPolicy = computed(() => products.value.filter((product) => !versionPolicies.value.some((policy) => policy.productId === product.id)).length);
-const pendingUnbindRequests = computed(() => unbindRequests.value.filter((request) => request.status === 'pending').length);
-const activeOfflinePackages = computed(() => offlinePackages.value.filter((item) => item.status === 'active').length);
 const forcedUpgradePolicies = computed(() => versionPolicies.value.filter((policy) => policy.forceUpgrade).length);
 const requestFailureRate = computed(() => monitoringMetrics.value.api.requests.failureRate);
 const signingMode = computed(() => '产品/版本级密钥');
@@ -134,10 +124,10 @@ const consoleHealthItems = computed(() => [
     detail: `${monitoringMetrics.value.api.requests.total} 次请求 / 平均 ${monitoringMetrics.value.api.requests.averageLatencyMs} ms`,
   },
   {
-    label: '待处理队列',
-    value: String(openRisks.value + pendingUnbindRequests.value),
-    status: openRisks.value || pendingUnbindRequests.value ? 'warning' : 'success',
-    detail: `风险 ${openRisks.value} / 解绑 ${pendingUnbindRequests.value}`,
+    label: '待处理风险',
+    value: String(openRisks.value),
+    status: openRisks.value ? 'warning' : 'success',
+    detail: `风险 ${openRisks.value}`,
   },
 ]);
 const productVersionRows = computed(() => products.value.map((product) => {
@@ -157,8 +147,6 @@ const productVersionRows = computed(() => products.value.map((product) => {
 }));
 const consoleQueueRows = computed(() => [
   { label: '待处理风险', value: openRisks.value, detail: `高危 ${riskSummary.value.high}` },
-  { label: '解绑审核', value: pendingUnbindRequests.value, detail: `${unbindRequests.value.length} 条总申请` },
-  { label: '活跃离线包', value: activeOfflinePackages.value, detail: `${offlinePackages.value.length} 个离线包` },
   { label: '强制升级策略', value: forcedUpgradePolicies.value, detail: `${versionPolicies.value.length} 条版本策略` },
 ]);
 
@@ -223,7 +211,7 @@ async function submitLogin() {
 async function refreshAll() {
   loading.value = true;
   try {
-    const [nextAdmins, nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies, nextTenants, nextChannels, nextCardKeys, nextOfflinePackages, nextRiskEvents, nextRiskSummary, nextMonitoringMetrics, nextUnbindRequests, nextProtectorAdapters] = await Promise.all([
+    const [nextAdmins, nextProducts, nextPlans, nextLicenses, nextDevices, nextActivationLogs, nextHeartbeatLogs, nextAuditLogs, nextVersionPolicies, nextTenants, nextChannels, nextCardKeys, nextRiskEvents, nextRiskSummary, nextMonitoringMetrics] = await Promise.all([
       listAdmins().catch(() => []),
       listProducts(),
       listPlans(),
@@ -236,12 +224,9 @@ async function refreshAll() {
       listTenants(),
       listChannels(),
       listCardKeys(),
-      listOfflinePackages(),
       listRiskEvents(),
       getRiskSummary(),
       getMonitoringMetrics(),
-      listDeviceUnbindRequests(),
-      listProtectorAdapters(),
     ]);
     admins.value = nextAdmins;
     products.value = nextProducts;
@@ -255,21 +240,15 @@ async function refreshAll() {
     tenants.value = nextTenants;
     channels.value = nextChannels;
     cardKeys.value = nextCardKeys;
-    offlinePackages.value = nextOfflinePackages;
     riskEvents.value = nextRiskEvents;
     riskSummary.value = nextRiskSummary;
     monitoringMetrics.value = nextMonitoringMetrics;
-    unbindRequests.value = nextUnbindRequests;
-    protectorAdapters.value = nextProtectorAdapters;
     if (!licenseForm.productId && nextProducts[0]) licenseForm.productId = nextProducts[0].id;
     if (!licenseForm.planId && nextPlans[0]) licenseForm.planId = nextPlans[0].id;
     if (!versionPolicyForm.productId && nextProducts[0]) versionPolicyForm.productId = nextProducts[0].id;
     if (!cardKeyForm.productId && nextProducts[0]) cardKeyForm.productId = nextProducts[0].id;
     if (!cardKeyForm.planId && nextPlans[0]) cardKeyForm.planId = nextPlans[0].id;
     if (!adminForm.tenantId && nextTenants[0]) adminForm.tenantId = nextTenants[0].id;
-    if (!offlinePackageForm.licenseId && nextLicenses[0]) offlinePackageForm.licenseId = nextLicenses[0].id;
-    if (!unbindRequestForm.licenseId && nextLicenses[0]) unbindRequestForm.licenseId = nextLicenses[0].id;
-    if (!unbindRequestForm.deviceId && nextDevices[0]) unbindRequestForm.deviceId = nextDevices[0].id;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载失败');
   } finally {
@@ -578,6 +557,22 @@ async function changeDeviceStatus(row: Device, status: Device['status']) {
   });
 }
 
+async function unbindDevice(row: Device) {
+  try {
+    await ElMessageBox.confirm(`确认解绑设备「${row.deviceName || row.deviceCode}」？解绑后会释放该卡密的设备绑定名额。`, '解绑设备', {
+      confirmButtonText: '解绑',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  await withMessage('设备已解绑', async () => {
+    await updateDeviceStatus(row.id, 'removed');
+    await refreshAll();
+  });
+}
+
 async function submitVersionPolicy() {
   await withMessage('版本策略已创建', async () => {
     await createVersionPolicy({ ...versionPolicyForm, downloadUrl: versionPolicyForm.downloadUrl || undefined, notice: versionPolicyForm.notice || undefined });
@@ -662,21 +657,6 @@ async function removeCardKey(row: CardKey) {
   });
 }
 
-async function submitOfflinePackage() {
-  await withMessage('离线授权包已创建', async () => {
-    await createOfflinePackage({ ...offlinePackageForm, tenantId: optionalId(offlinePackageForm.tenantId), deviceId: optionalId(offlinePackageForm.deviceId), packageCode: offlinePackageForm.packageCode || undefined });
-    offlinePackageForm.packageCode = '';
-    await refreshAll();
-  });
-}
-
-async function changeOfflinePackageStatus(row: OfflinePackage, status: OfflinePackage['status']) {
-  await withMessage('离线授权包状态已更新', async () => {
-    await updateOfflinePackageStatus(row.id, status);
-    await refreshAll();
-  });
-}
-
 async function submitRiskEvent() {
   await withMessage('风险事件已创建', async () => {
     await createRiskEvent({ ...riskEventForm, tenantId: optionalId(riskEventForm.tenantId), licenseId: optionalId(riskEventForm.licenseId), deviceId: optionalId(riskEventForm.deviceId) });
@@ -688,38 +668,6 @@ async function submitRiskEvent() {
 async function changeRiskEventStatus(row: RiskEvent, status: RiskEvent['status']) {
   await withMessage('风险事件状态已更新', async () => {
     await updateRiskEventStatus(row.id, status);
-    await refreshAll();
-  });
-}
-
-async function submitUnbindRequest() {
-  await withMessage('解绑申请已创建', async () => {
-    await createDeviceUnbindRequest({ ...unbindRequestForm, reason: unbindRequestForm.reason || undefined });
-    unbindRequestForm.reason = '';
-    await refreshAll();
-  });
-}
-
-async function reviewUnbindRequest(row: DeviceUnbindRequest, status: 'approved' | 'rejected') {
-  await withMessage('解绑申请已处理', async () => {
-    await reviewDeviceUnbindRequest(row.id, status);
-    await refreshAll();
-  });
-}
-
-async function submitProtectorAdapter() {
-  await withMessage('保护器适配器已创建', async () => {
-    await createProtectorAdapter({ ...protectorAdapterForm, tenantId: optionalId(protectorAdapterForm.tenantId), productId: optionalId(protectorAdapterForm.productId), notes: protectorAdapterForm.notes || undefined });
-    protectorAdapterForm.adapterCode = '';
-    protectorAdapterForm.name = '';
-    protectorAdapterForm.notes = '';
-    await refreshAll();
-  });
-}
-
-async function toggleProtectorAdapter(row: ProtectorAdapter) {
-  await withMessage('保护器适配器状态已更新', async () => {
-    await updateProtectorAdapterStatus(row.id, row.status === 'active' ? 'inactive' : 'active');
     await refreshAll();
   });
 }
@@ -752,10 +700,6 @@ function parseJson(value: string) {
 
 function optionalId(value?: number) {
   return value && value > 0 ? value : undefined;
-}
-
-function nextYearIso() {
-  return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 async function withMessage(message: string, action: () => Promise<void>) {
@@ -860,7 +804,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <article class="metric-card primary"><span>活跃产品</span><strong>{{ activeProducts }}</strong><small>{{ products.length }} 个产品 / {{ versionPolicies.length }} 条版本策略</small></article>
         <article class="metric-card"><span>有效授权码</span><strong>{{ activeLicenses }}</strong><small>停用或异常 {{ disabledLicenses }}</small></article>
         <article class="metric-card"><span>在线绑定设备</span><strong>{{ onlineDevices }}</strong><small>{{ devices.length }} 台设备 / {{ activeCardKeys }} 个待用卡密</small></article>
-        <article class="metric-card danger"><span>待处理队列</span><strong>{{ openRisks + pendingUnbindRequests }}</strong><small>风险 {{ openRisks }} / 解绑 {{ pendingUnbindRequests }}</small></article>
+        <article class="metric-card danger"><span>待处理风险</span><strong>{{ openRisks }}</strong><small>高危 {{ riskSummary.high }} / 总计 {{ riskSummary.total }}</small></article>
       </section>
 
       <section class="console-panel console-home" v-loading="loading">
@@ -868,7 +812,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <div>
             <p class="eyebrow">运行状态</p>
             <h2>授权链路健康</h2>
-            <p>首屏聚焦产品版本策略、请求签名隔离、API 健康和待处理队列。</p>
+            <p>首屏聚焦产品版本策略、请求签名隔离、API 健康和待处理风险。</p>
           </div>
         </div>
         <div class="health-grid">
@@ -1204,7 +1148,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column label="操作" width="168" fixed="right">
             <template #default="{ row }">
               <el-button size="small" @click="changeDeviceStatus(row, 'active')">启用</el-button>
-              <el-button size="small" @click="changeDeviceStatus(row, 'removed')">移除</el-button>
+              <el-button size="small" type="warning" plain @click="unbindDevice(row)">解绑</el-button>
               <el-button size="small" type="danger" plain @click="changeDeviceStatus(row, 'banned')">封禁</el-button>
             </template>
           </el-table-column>
@@ -1518,113 +1462,6 @@ async function withMessage(message: string, action: () => Promise<void>) {
               <el-button size="small" type="success" plain @click="changeCardKeyStatus(row, 'unused')">启用</el-button>
               <el-button size="small" type="warning" plain @click="changeCardKeyStatus(row, 'disabled')">禁用</el-button>
               <el-button size="small" type="danger" plain @click="removeCardKey(row)">移除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </section>
-
-      <section v-if="activeSection === 'offline'" class="section-page">
-        <div class="table-card">
-          <div class="toolbar"><strong>创建离线授权包</strong></div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitOfflinePackage">
-            <el-form-item label="授权码">
-              <el-select v-model="offlinePackageForm.licenseId" style="width: 100%">
-                <el-option v-for="license in licenses" :key="license.id" :label="licenseLabel(license)" :value="license.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="设备（可选）">
-              <el-select v-model="offlinePackageForm.deviceId" clearable style="width: 100%">
-                <el-option v-for="device in devices" :key="device.id" :label="device.deviceCode" :value="device.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="包编码（留空自动生成）"><el-input v-model="offlinePackageForm.packageCode" /></el-form-item>
-            <el-form-item label="到期时间"><el-input v-model="offlinePackageForm.expireAt" /></el-form-item>
-            <el-button type="primary" native-type="submit">创建离线包</el-button>
-          </el-form>
-        </div>
-        <el-table :data="offlinePackages" style="margin-top: 18px">
-          <el-table-column prop="packageCode" label="包编码" min-width="210" />
-          <el-table-column label="授权" min-width="210">
-            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
-          </el-table-column>
-          <el-table-column prop="device.deviceCode" label="设备" />
-          <el-table-column prop="expireAt" label="到期时间" min-width="190" />
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
-          </el-table-column>
-          <el-table-column label="操作" width="160">
-            <template #default="{ row }">
-              <el-button size="small" @click="changeOfflinePackageStatus(row, row.status === 'active' ? 'revoked' : 'active')">{{ row.status === 'active' ? '撤销' : '恢复' }}</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="table-card" style="margin-top: 18px">
-          <div class="toolbar"><strong>自助解绑申请</strong></div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitUnbindRequest">
-            <el-form-item label="授权码">
-              <el-select v-model="unbindRequestForm.licenseId" style="width: 100%">
-                <el-option v-for="license in licenses" :key="license.id" :label="licenseLabel(license)" :value="license.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="设备">
-              <el-select v-model="unbindRequestForm.deviceId" style="width: 100%">
-                <el-option v-for="device in devices" :key="device.id" :label="device.deviceCode" :value="device.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item class="full" label="原因"><el-input v-model="unbindRequestForm.reason" /></el-form-item>
-            <el-button type="primary" native-type="submit">创建申请</el-button>
-          </el-form>
-        </div>
-        <el-table :data="unbindRequests" style="margin-top: 18px">
-          <el-table-column label="授权" min-width="210">
-            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
-          </el-table-column>
-          <el-table-column prop="device.deviceCode" label="设备" />
-          <el-table-column prop="reason" label="原因" />
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
-          </el-table-column>
-          <el-table-column label="操作" width="180">
-            <template #default="{ row }">
-              <el-button size="small" @click="reviewUnbindRequest(row, 'approved')">通过</el-button>
-              <el-button size="small" type="danger" @click="reviewUnbindRequest(row, 'rejected')">拒绝</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </section>
-
-      <section v-if="activeSection === 'protectors'" class="section-page">
-        <div class="table-card">
-          <div class="toolbar"><strong>创建保护器适配器</strong></div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitProtectorAdapter">
-            <el-form-item label="租户">
-              <el-select v-model="protectorAdapterForm.tenantId" clearable style="width: 100%">
-                <el-option v-for="tenant in tenants" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="产品">
-              <el-select v-model="protectorAdapterForm.productId" clearable style="width: 100%">
-                <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="适配器编码"><el-input v-model="protectorAdapterForm.adapterCode" placeholder="protector_default" /></el-form-item>
-            <el-form-item label="名称"><el-input v-model="protectorAdapterForm.name" /></el-form-item>
-            <el-form-item class="full" label="备注"><el-input v-model="protectorAdapterForm.notes" /></el-form-item>
-            <el-button type="primary" native-type="submit">创建适配器</el-button>
-          </el-form>
-        </div>
-        <el-table :data="protectorAdapters" style="margin-top: 18px">
-          <el-table-column prop="adapterCode" label="编码" />
-          <el-table-column prop="name" label="名称" />
-          <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
-          </el-table-column>
-          <el-table-column prop="notes" label="备注" />
-          <el-table-column label="操作" width="160">
-            <template #default="{ row }">
-              <el-button size="small" @click="toggleProtectorAdapter(row)">{{ row.status === 'active' ? '停用' : '启用' }}</el-button>
             </template>
           </el-table-column>
         </el-table>
