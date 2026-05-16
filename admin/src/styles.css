@@ -193,9 +193,10 @@ button, input, textarea { font: inherit; }
 .code-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .code-grid pre { margin: 0; min-height: 96px; overflow-x: auto; padding: 14px; border-radius: 8px; background: #101827; color: #dbeafe; font-size: 13px; line-height: 1.6; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.product-form-grid { display: grid; grid-template-columns: minmax(470px, 1.55fr) minmax(180px, .7fr) minmax(240px, 1fr) auto; gap: 14px; align-items: end; }
+.product-form-grid { display: grid; grid-template-columns: minmax(620px, 2fr) minmax(180px, .6fr) minmax(220px, .8fr) auto; gap: 14px; align-items: end; }
 .product-create-form .el-form-item { margin-bottom: 0; }
 .product-key-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.product-key-control .el-input__inner { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .form-actions { display: flex; justify-content: flex-end; }
 .product-key-value { display: inline-block; min-width: 36ch; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; color: #0f172a; }
 .row-actions { display: flex; align-items: center; gap: 8px; }
@@ -277,7 +278,7 @@ button, input, textarea { font: inherit; }
   .overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sdk-grid, .code-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .product-form-grid { grid-template-columns: minmax(420px, 1.3fr) minmax(180px, .8fr); }
+  .product-form-grid { grid-template-columns: minmax(520px, 1.5fr) minmax(180px, .8fr); }
   .form-actions { justify-content: flex-start; }
 }
 
