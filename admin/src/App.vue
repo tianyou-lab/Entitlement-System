@@ -1248,7 +1248,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'cardKeys'" class="section-page">
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
-            <div><strong>生成授权码</strong><span class="muted">选择产品和授权类型，按时、天、周、月、季、年生成授权码</span></div>
+            <div><strong>生成授权码</strong><span class="muted">自动生成类型前缀授权码，例如月卡 YK + 32 位大写十六进制</span></div>
             <div class="toolbar-actions">
               <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制授权码')">复制全部</el-button>
               <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的授权码')">复制选中</el-button>
@@ -1268,7 +1268,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
                 <el-option v-for="option in cardKeyDurationOptions" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
             </el-form-item>
-            <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
+            <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
             <el-form-item label="批次"><el-input v-model="cardKeyForm.batchCode" /></el-form-item>
             <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
             <el-button type="primary" native-type="submit">生成授权码</el-button>

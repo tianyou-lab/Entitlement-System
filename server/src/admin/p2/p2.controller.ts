@@ -30,6 +30,14 @@ import { ImportOfflinePackageDto } from './offline.dto';
 import { AdminRoles } from '../auth/admin-roles.decorator';
 
 type CardKeyDurationType = 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+const cardKeyPrefixes: Record<CardKeyDurationType, string> = {
+  hour: 'SK',
+  day: 'TK',
+  week: 'ZK',
+  month: 'YK',
+  quarter: 'JK',
+  year: 'NK',
+};
 
 @UseGuards(AdminAuthGuard)
 @Controller('/admin')
@@ -81,7 +89,7 @@ export class P2AdminController {
         productId: dto.productId,
         planId,
         channelId: dto.channelId,
-        cardKey: dto.cardKey ?? this.randomCode('CARD'),
+        cardKey: dto.cardKey ?? this.generateCardKey(dto.durationType ?? 'day'),
         batchCode: dto.batchCode,
         status: dto.status,
         expireAt: dto.expireAt ? new Date(dto.expireAt) : undefined,
@@ -245,6 +253,10 @@ export class P2AdminController {
 
   private randomCode(prefix: string) {
     return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+  }
+
+  private generateCardKey(durationType: CardKeyDurationType) {
+    return `${cardKeyPrefixes[durationType]}${randomBytes(16).toString('hex').toUpperCase()}`;
   }
 
   private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType) {
