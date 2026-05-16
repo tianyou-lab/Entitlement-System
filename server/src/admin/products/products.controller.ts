@@ -26,7 +26,29 @@ export class ProductsController {
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    await this.prisma.product.delete({ where: { id: Number(id) } });
+    const productId = Number(id);
+    await this.prisma.$transaction(async (tx) => {
+      const licenses = await tx.license.findMany({ where: { productId }, select: { id: true } });
+      const licenseIds = licenses.map((license) => license.id);
+      const devices = await tx.device.findMany({ where: { licenseId: { in: licenseIds } }, select: { id: true } });
+      const deviceIds = devices.map((device) => device.id);
+      const leases = await tx.lease.findMany({ where: { licenseId: { in: licenseIds } }, select: { id: true } });
+      const leaseIds = leases.map((lease) => lease.id);
+
+      await tx.heartbeatLog.deleteMany({ where: { OR: [{ licenseId: { in: licenseIds } }, { deviceId: { in: deviceIds } }, { leaseId: { in: leaseIds } }] } });
+      await tx.activationLog.deleteMany({ where: { OR: [{ licenseId: { in: licenseIds } }, { deviceId: { in: deviceIds } }] } });
+      await tx.deviceUnbindRequest.deleteMany({ where: { OR: [{ licenseId: { in: licenseIds } }, { deviceId: { in: deviceIds } }] } });
+      await tx.riskEvent.deleteMany({ where: { OR: [{ licenseId: { in: licenseIds } }, { deviceId: { in: deviceIds } }] } });
+      await tx.offlinePackage.deleteMany({ where: { OR: [{ licenseId: { in: licenseIds } }, { deviceId: { in: deviceIds } }] } });
+      await tx.lease.deleteMany({ where: { id: { in: leaseIds } } });
+      await tx.device.deleteMany({ where: { id: { in: deviceIds } } });
+      await tx.cardKey.deleteMany({ where: { productId } });
+      await tx.license.deleteMany({ where: { id: { in: licenseIds } } });
+      await tx.versionPolicy.deleteMany({ where: { productId } });
+      await tx.protectorAdapter.deleteMany({ where: { productId } });
+      await tx.plan.deleteMany({ where: { productId } });
+      await tx.product.delete({ where: { id: productId } });
+    });
     return ok({ deleted: true }, 'deleted');
   }
 }

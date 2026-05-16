@@ -323,7 +323,7 @@ async function toggleProductStatus(product: Product) {
 
 async function removeProduct(product: Product) {
   try {
-    await ElMessageBox.confirm(`确认移除产品「${product.name}」？存在套餐、授权码、卡密等关联数据时将无法移除。`, '移除产品', {
+    await ElMessageBox.confirm(`确认移除产品「${product.name}」？关联的套餐、授权码、设备、日志和版本策略会一并删除。`, '移除产品', {
       confirmButtonText: '移除',
       cancelButtonText: '取消',
       type: 'warning',
