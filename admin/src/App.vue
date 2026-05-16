@@ -828,7 +828,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <div><strong>创建产品</strong><span class="muted">产品 Key 自动生成，用于客户端 productCode 配置</span></div>
           </div>
           <el-form class="product-form-grid product-create-form" label-position="top" @submit.prevent="submitProduct">
-            <el-form-item label="产品 Key">
+            <el-form-item class="product-key-item" label="产品 Key">
               <div class="product-key-control">
                 <el-input v-model="productForm.productCode" readonly />
                 <el-button @click="refreshProductKey">重新生成</el-button>
