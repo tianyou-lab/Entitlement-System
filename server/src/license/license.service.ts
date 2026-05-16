@@ -41,6 +41,10 @@ export class LicenseService {
     return license.maxDevicesOverride ?? license.plan.maxDevices;
   }
 
+  maxConcurrency(license: { plan: { maxConcurrency: number }; maxConcurrencyOverride: number | null }) {
+    return license.maxConcurrencyOverride ?? license.plan.maxConcurrency;
+  }
+
   deviceBindingPolicy(license: { plan: { featureFlags: unknown } }): DeviceBindingPolicy {
     const flags = license.plan.featureFlags;
     if (flags && typeof flags === 'object' && !Array.isArray(flags) && (flags as Record<string, unknown>).deviceBindingPolicy === 'kick_oldest') {

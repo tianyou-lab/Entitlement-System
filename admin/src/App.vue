@@ -37,8 +37,8 @@ const cardKeyDurationOptions = [
   { label: '年卡', value: 'year' },
 ] as const;
 const deviceBindingPolicyOptions: Array<{ label: string; value: DeviceBindingPolicy; description: string }> = [
-  { label: '设备满额拒绝新设备', value: 'deny_new', description: '维持已绑定设备，新设备返回 DEVICE_LIMIT_REACHED' },
-  { label: '顶掉最久未活跃设备', value: 'kick_oldest', description: '新设备激活时移除最久未活跃设备并撤销其在线凭证' },
+  { label: '满额拒绝新设备/新在线', value: 'deny_new', description: '绑定数或在线并发达到上限时返回 DEVICE_LIMIT_REACHED' },
+  { label: '顶掉最久未活跃设备', value: 'kick_oldest', description: '绑定满额时移除旧设备；在线满额时仅撤销旧在线凭证' },
 ];
 
 const token = ref(getToken());

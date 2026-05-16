@@ -1,9 +1,10 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { LeaseStatus } from '@prisma/client';
+import { DeviceStatus, LeaseStatus } from '@prisma/client';
 import { ErrorCode } from '../common/error-codes';
 import { AppError } from '../common/errors';
 import { PrismaService } from '../database/prisma.service';
+import type { DeviceBindingPolicy } from '../device/device.service';
 
 interface LeasePayload {
   jti: string;
@@ -17,7 +18,12 @@ interface LeasePayload {
 export class LeaseService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async issue(licenseId: number, deviceId: number, clientVersion: string) {
+  async issue(licenseId: number, deviceId: number, clientVersion: string, maxConcurrency?: number, bindingPolicy: DeviceBindingPolicy = 'deny_new') {
+    await this.prisma.lease.updateMany({ where: { deviceId, status: LeaseStatus.active }, data: { status: LeaseStatus.revoked } });
+    if (maxConcurrency && maxConcurrency > 0) {
+      await this.enforceConcurrencyLimit(licenseId, maxConcurrency, bindingPolicy);
+    }
+
     const ttlMinutes = process.env.LEASE_TTL_MINUTES ? Number(process.env.LEASE_TTL_MINUTES) : 120;
     const issuedAt = new Date();
     const expireAt = new Date(issuedAt.getTime() + ttlMinutes * 60 * 1000);
@@ -76,6 +82,38 @@ export class LeaseService {
 
   async revokeActiveByDevice(deviceId: number) {
     return this.prisma.lease.updateMany({ where: { deviceId, status: LeaseStatus.active }, data: { status: LeaseStatus.revoked } });
+  }
+
+  private async enforceConcurrencyLimit(licenseId: number, maxConcurrency: number, bindingPolicy: DeviceBindingPolicy) {
+    const activeLeases = await this.prisma.lease.findMany({
+      where: {
+        licenseId,
+        status: LeaseStatus.active,
+        expireAt: { gt: new Date() },
+        device: { status: DeviceStatus.active },
+      },
+      include: { device: true },
+      orderBy: { expireAt: 'asc' },
+    });
+
+    const activeByDevice = new Map<number, (typeof activeLeases)[number]>();
+    for (const lease of activeLeases) {
+      const current = activeByDevice.get(lease.deviceId);
+      if (!current || lease.device.lastSeenAt.getTime() < current.device.lastSeenAt.getTime()) {
+        activeByDevice.set(lease.deviceId, lease);
+      }
+    }
+
+    if (activeByDevice.size < maxConcurrency) return;
+    if (bindingPolicy !== 'kick_oldest') {
+      throw new AppError(ErrorCode.DEVICE_LIMIT_REACHED, 'concurrency limit reached');
+    }
+
+    const oldestLease = [...activeByDevice.values()].sort((a, b) => a.device.lastSeenAt.getTime() - b.device.lastSeenAt.getTime())[0];
+    if (!oldestLease) {
+      throw new AppError(ErrorCode.DEVICE_LIMIT_REACHED, 'concurrency limit reached');
+    }
+    await this.revokeActiveByDevice(oldestLease.deviceId);
   }
 
   private parseToken(token: string): LeasePayload {

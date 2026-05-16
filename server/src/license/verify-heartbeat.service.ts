@@ -47,7 +47,7 @@ export class VerifyHeartbeatService {
     const versionPolicy = await this.versions.ensureAllowed(dto.productCode, dto.appVersion);
     await this.devices.touch(lease.deviceId, dto.appVersion, ip);
     await this.leases.revoke(lease.id);
-    const issued = await this.leases.issue(lease.licenseId, lease.deviceId, dto.appVersion);
+    const issued = await this.leases.issue(lease.licenseId, lease.deviceId, dto.appVersion, this.licenses.maxConcurrency(license), this.licenses.deviceBindingPolicy(license));
     await this.audit.heartbeat({
       licenseId: lease.licenseId,
       deviceId: lease.deviceId,

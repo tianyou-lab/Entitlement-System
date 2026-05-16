@@ -23,8 +23,9 @@ export class ActivationService {
   async activate(dto: ActivateDto, ip?: string, userAgent?: string) {
     const license = await this.licenses.validateLicense(dto.productCode, dto.licenseKey);
     await this.risk.inspectActivationAttempt(license.id, dto.device, ip);
-    const device = await this.devices.getOrCreateDevice(license.id, this.licenses.maxDevices(license), dto.device, ip, this.licenses.deviceBindingPolicy(license));
-    const issued = await this.leases.issue(license.id, device.id, dto.device.appVersion);
+    const bindingPolicy = this.licenses.deviceBindingPolicy(license);
+    const device = await this.devices.getOrCreateDevice(license.id, this.licenses.maxDevices(license), dto.device, ip, bindingPolicy);
+    const issued = await this.leases.issue(license.id, device.id, dto.device.appVersion, this.licenses.maxConcurrency(license), bindingPolicy);
 
     if (!license.activateAt) {
       await this.prisma.license.update({ where: { id: license.id }, data: { activateAt: new Date() } });
