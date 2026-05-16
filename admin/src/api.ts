@@ -65,6 +65,10 @@ export function createPlan(input: CreatePlanInput) {
   return request<Plan>('/admin/plans', { method: 'POST', body: input });
 }
 
+export function updatePlan(id: number, input: Partial<CreatePlanInput>) {
+  return request<Plan>(`/admin/plans/${id}`, { method: 'PUT', body: input });
+}
+
 export function listLicenses() {
   return request<License[]>('/admin/licenses');
 }

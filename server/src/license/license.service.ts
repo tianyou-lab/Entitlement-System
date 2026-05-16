@@ -5,6 +5,7 @@ import { AppError } from '../common/errors';
 import { PrismaService } from '../database/prisma.service';
 import { PlanService } from '../plan/plan.service';
 import { hashLicenseKey, legacyHashLicenseKey } from './license-key';
+import { DeviceBindingPolicy } from '../device/device.service';
 
 @Injectable()
 export class LicenseService {
@@ -38,6 +39,14 @@ export class LicenseService {
 
   maxDevices(license: { plan: { maxDevices: number }; maxDevicesOverride: number | null }) {
     return license.maxDevicesOverride ?? license.plan.maxDevices;
+  }
+
+  deviceBindingPolicy(license: { plan: { featureFlags: unknown } }): DeviceBindingPolicy {
+    const flags = license.plan.featureFlags;
+    if (flags && typeof flags === 'object' && !Array.isArray(flags) && (flags as Record<string, unknown>).deviceBindingPolicy === 'kick_oldest') {
+      return 'kick_oldest';
+    }
+    return 'deny_new';
   }
 
   private async findLicenseByKey(licenseKey: string) {

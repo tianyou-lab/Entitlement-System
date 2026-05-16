@@ -2,8 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updatePlan, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceBindingPolicy, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
@@ -36,6 +36,10 @@ const cardKeyDurationOptions = [
   { label: '季卡', value: 'quarter' },
   { label: '年卡', value: 'year' },
 ] as const;
+const deviceBindingPolicyOptions: Array<{ label: string; value: DeviceBindingPolicy; description: string }> = [
+  { label: '设备满额拒绝新设备', value: 'deny_new', description: '维持已绑定设备，新设备返回 DEVICE_LIMIT_REACHED' },
+  { label: '顶掉最久未活跃设备', value: 'kick_oldest', description: '新设备激活时移除最久未活跃设备并撤销其在线凭证' },
+];
 
 const token = ref(getToken());
 const loading = ref(false);
@@ -71,7 +75,8 @@ const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const adminForm = reactive<CreateAdminInput>({ username: '', password: '', roleCode: 'viewer', tenantId: undefined });
 const productForm = reactive<CreateProductInput>({ productCode: generateProductKey(), name: '', description: '' });
 const productEditForm = reactive({ name: '', description: '' });
-const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
+const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20, deviceBindingPolicy: 'deny_new' } });
+const planDeviceBindingPolicy = ref<DeviceBindingPolicy>('deny_new');
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
 const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', contactEmail: '' });
@@ -405,11 +410,41 @@ async function removeProduct(product: Product) {
 
 async function submitPlan() {
   await withMessage('套餐已创建', async () => {
-    await createPlan({ ...planForm, featureFlags: parseJson(planFlagsText.value) });
+    await createPlan({ ...planForm, featureFlags: { ...parseJson(planFlagsText.value), deviceBindingPolicy: planDeviceBindingPolicy.value } });
     planForm.planCode = '';
     planForm.name = '';
     await refreshAll();
   });
+}
+
+async function updatePlanDevicePolicy(plan: Plan, policy: DeviceBindingPolicy) {
+  await withMessage('设备绑定策略已更新', async () => {
+    await updatePlan(plan.id, { featureFlags: { ...(plan.featureFlags ?? {}), deviceBindingPolicy: policy } });
+    await refreshAll();
+  });
+}
+
+function updatePlanDevicePolicyFromSelect(plan: Plan, value: string | number | boolean | Record<string, unknown>) {
+  void updatePlanDevicePolicy(plan, value === 'kick_oldest' ? 'kick_oldest' : 'deny_new');
+}
+
+async function updatePlanDeviceLimits(plan: Plan) {
+  await withMessage('设备限制已更新', async () => {
+    await updatePlan(plan.id, {
+      maxDevices: plan.maxDevices,
+      maxConcurrency: plan.maxConcurrency,
+      featureFlags: { ...(plan.featureFlags ?? {}), deviceBindingPolicy: planDeviceBindingPolicyFor(plan) },
+    });
+    await refreshAll();
+  });
+}
+
+function planDeviceBindingPolicyFor(plan: Plan): DeviceBindingPolicy {
+  return plan.featureFlags?.deviceBindingPolicy === 'kick_oldest' ? 'kick_oldest' : 'deny_new';
+}
+
+function deviceBindingPolicyText(policy: DeviceBindingPolicy) {
+  return deviceBindingPolicyOptions.find((item) => item.value === policy)?.label ?? policy;
 }
 
 async function submitLicense() {
@@ -1131,6 +1166,14 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-form-item label="最大并发数">
               <el-input-number v-model="planForm.maxConcurrency" :min="1" style="width: 100%" />
             </el-form-item>
+            <el-form-item label="多设备登录策略">
+              <el-select v-model="planDeviceBindingPolicy" style="width: 100%">
+                <el-option v-for="option in deviceBindingPolicyOptions" :key="option.value" :label="option.label" :value="option.value">
+                  <span>{{ option.label }}</span>
+                  <small class="select-option-note">{{ option.description }}</small>
+                </el-option>
+              </el-select>
+            </el-form-item>
             <el-form-item label="宽限小时">
               <el-input-number v-model="planForm.graceHours" :min="0" style="width: 100%" />
             </el-form-item>
@@ -1145,7 +1188,24 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="planCode" label="套餐编码" />
           <el-table-column prop="name" label="名称" />
           <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column prop="maxDevices" label="设备数" width="100" />
+          <el-table-column label="最大绑定设备" width="160">
+            <template #default="{ row }">
+              <el-input-number v-model="row.maxDevices" :min="1" size="small" style="width: 126px" @change="updatePlanDeviceLimits(row)" />
+            </template>
+          </el-table-column>
+          <el-table-column label="最大并发" width="150">
+            <template #default="{ row }">
+              <el-input-number v-model="row.maxConcurrency" :min="1" size="small" style="width: 116px" @change="updatePlanDeviceLimits(row)" />
+            </template>
+          </el-table-column>
+          <el-table-column label="多设备策略" min-width="220">
+            <template #default="{ row }">
+              <el-select :model-value="planDeviceBindingPolicyFor(row)" size="small" @change="updatePlanDevicePolicyFromSelect(row, $event)">
+                <el-option v-for="option in deviceBindingPolicyOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+              <span class="table-subtext">{{ planDeviceBindingPolicyFor(row) === 'kick_oldest' ? '新设备会顶掉最久未活跃设备' : '设备满额时拒绝新设备' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="120">
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>

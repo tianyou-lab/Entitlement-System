@@ -175,6 +175,7 @@ button, input, textarea { font: inherit; }
 .compact-heading { margin-bottom: 14px; padding-bottom: 14px; }
 .compact-heading h2 { font-size: 20px; }
 .table-subtext { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.select-option-note { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .inline-code { display: inline-block; max-width: 100%; padding: 4px 7px; border-radius: 6px; background: #e8f1fb; color: #1557b0; font-size: 12px; overflow-wrap: anywhere; }
 .queue-list { display: grid; gap: 10px; }
 .queue-list article { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }

@@ -56,6 +56,8 @@ export interface Plan {
   product?: Product;
 }
 
+export type DeviceBindingPolicy = 'deny_new' | 'kick_oldest';
+
 export interface License {
   id: number;
   licenseKey?: string;

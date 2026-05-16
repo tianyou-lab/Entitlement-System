@@ -48,6 +48,7 @@ const api = vi.hoisted(() => ({
   updateDeviceStatus: vi.fn(),
   updateLicenseStatus: vi.fn(),
   updateOfflinePackageStatus: vi.fn(),
+  updatePlan: vi.fn(),
   updateProduct: vi.fn(),
   updateProtectorAdapterStatus: vi.fn(),
   updateRiskEventStatus: vi.fn(),

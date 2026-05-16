@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { DeviceStatus, Prisma } from '@prisma/client';
+import { DeviceStatus, LeaseStatus, Prisma } from '@prisma/client';
 import { ErrorCode } from '../common/error-codes';
 import { AppError } from '../common/errors';
 import { PrismaService } from '../database/prisma.service';
 import { DeviceDto } from '../license/dto/license.dto';
+
+export type DeviceBindingPolicy = 'deny_new' | 'kick_oldest';
 
 @Injectable()
 export class DeviceService {
@@ -20,7 +22,7 @@ export class DeviceService {
     return device;
   }
 
-  async getOrCreateDevice(licenseId: number, maxDevices: number, dto: DeviceDto, ip?: string) {
+  async getOrCreateDevice(licenseId: number, maxDevices: number, dto: DeviceDto, ip?: string, bindingPolicy: DeviceBindingPolicy = 'deny_new') {
     const existing = await this.prisma.device.findUnique({ where: { deviceCode: dto.deviceCode } });
     if (existing) {
       if (existing.licenseId !== licenseId || existing.status === DeviceStatus.removed) {
@@ -37,7 +39,24 @@ export class DeviceService {
 
     const activeCount = await this.prisma.device.count({ where: { licenseId, status: DeviceStatus.active } });
     if (activeCount >= maxDevices) {
-      throw new AppError(ErrorCode.DEVICE_LIMIT_REACHED, 'device limit reached');
+      if (bindingPolicy !== 'kick_oldest') {
+        throw new AppError(ErrorCode.DEVICE_LIMIT_REACHED, 'device limit reached');
+      }
+      const oldestDevice = await this.prisma.device.findFirst({
+        where: { licenseId, status: DeviceStatus.active },
+        orderBy: { lastSeenAt: 'asc' },
+      });
+      if (!oldestDevice) {
+        throw new AppError(ErrorCode.DEVICE_LIMIT_REACHED, 'device limit reached');
+      }
+      await this.prisma.device.update({
+        where: { id: oldestDevice.id },
+        data: { status: DeviceStatus.removed, unbindCount: { increment: 1 } },
+      });
+      await this.prisma.lease.updateMany({
+        where: { deviceId: oldestDevice.id, status: LeaseStatus.active },
+        data: { status: LeaseStatus.revoked },
+      });
     }
 
     return this.prisma.device.create({
