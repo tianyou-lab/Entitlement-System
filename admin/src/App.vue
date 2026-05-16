@@ -7,7 +7,7 @@ import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdm
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
-  { id: 'products', label: '产品管理', summary: '维护产品编码、名称与启停状态', icon: Box },
+  { id: 'products', label: '产品管理', summary: '创建产品并自动生成防重复产品 Key', icon: Box },
   { id: 'cardKeys', label: '授权管理', summary: '按产品和时长类型生成、复制、导出授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
@@ -67,7 +67,7 @@ const activeLogType = ref<'activation' | 'heartbeat' | 'audit'>('activation');
 const loginForm = reactive({ username: 'admin', password: '' });
 const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const adminForm = reactive<CreateAdminInput>({ username: '', password: '', roleCode: 'viewer', tenantId: undefined });
-const productForm = reactive<CreateProductInput>({ productCode: '', name: '', description: '' });
+const productForm = reactive<CreateProductInput>({ productCode: generateProductKey(), name: '', description: '' });
 const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20 } });
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
@@ -257,10 +257,29 @@ function formatBytes(value: number | null) {
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
+function generateProductKey() {
+  const bytes = new Uint8Array(8);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  }
+  const random = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `prd_${random}`;
+}
+
+function refreshProductKey() {
+  const existingKeys = new Set(products.value.map((product) => product.productCode));
+  let nextKey = generateProductKey();
+  while (existingKeys.has(nextKey)) nextKey = generateProductKey();
+  productForm.productCode = nextKey;
+}
+
 async function submitProduct() {
   await withMessage('产品已创建', async () => {
+    if (!productForm.productCode) refreshProductKey();
     await createProduct({ ...productForm });
-    productForm.productCode = '';
+    refreshProductKey();
     productForm.name = '';
     productForm.description = '';
     await refreshAll();
@@ -761,11 +780,15 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'products'" class="section-page">
         <div class="table-card">
           <div class="toolbar">
-            <div><strong>创建授权产品</strong><span class="muted">产品编码必须与客户端 productCode 一致</span></div>
+            <div><strong>创建产品</strong><span class="muted">产品 Key 自动生成，用于客户端 productCode 配置</span></div>
           </div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitProduct">
-            <el-form-item label="产品编码">
-              <el-input v-model="productForm.productCode" placeholder="demo_app" />
+            <el-form-item label="产品 Key">
+              <el-input v-model="productForm.productCode" readonly>
+                <template #append>
+                  <el-button @click="refreshProductKey">重新生成</el-button>
+                </template>
+              </el-input>
             </el-form-item>
             <el-form-item label="产品名称">
               <el-input v-model="productForm.name" placeholder="Demo App" />
@@ -778,7 +801,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="products" style="margin-top: 18px">
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="productCode" label="产品编码" />
+          <el-table-column prop="productCode" label="产品 Key" />
           <el-table-column prop="name" label="名称" />
           <el-table-column label="状态" width="120">
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
