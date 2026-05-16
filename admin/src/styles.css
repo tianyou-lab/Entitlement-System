@@ -220,6 +220,7 @@ button, input, textarea { font: inherit; }
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: #0f172a;
 }
+.card-key-code-text { overflow: hidden; overflow-wrap: normal; text-overflow: ellipsis; white-space: nowrap; }
 
 .el-button { border-radius: 8px; font-weight: 700; }
 .el-input__wrapper,

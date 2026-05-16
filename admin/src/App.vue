@@ -89,6 +89,10 @@ const isAuthenticated = computed(() => Boolean(token.value));
 const activeLicenses = computed(() => licenses.value.filter((license) => license.status === 'active').length);
 const disabledLicenses = computed(() => licenses.value.filter((license) => license.status === 'banned' || license.status === 'suspended' || license.status === 'inactive').length);
 const activeCardKeys = computed(() => cardKeys.value.filter((cardKey) => cardKey.status === 'unused' || cardKey.status === 'issued').length);
+const productNameColumnWidth = computed(() => {
+  const longestNameLength = Math.max(0, ...cardKeys.value.map((cardKey) => cardKey.product?.name?.length ?? 0));
+  return Math.min(150, Math.max(90, longestNameLength * 14 + 42));
+});
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'active').length);
 const openRisks = computed(() => riskSummary.value.open);
 const activeNavItem = computed(() => navItems.find((item) => item.id === activeSection.value) ?? navItems[0]);
@@ -1294,7 +1298,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <el-table-column prop="cardKey" label="授权码" min-width="120">
             <template #default="{ row }">
               <div class="key-cell">
-                <span class="key-text">{{ row.cardKey || '-' }}</span>
+                <span class="key-text card-key-code-text">{{ row.cardKey || '-' }}</span>
                 <el-button link type="primary" @click="copyText(row.cardKey)">复制</el-button>
               </div>
             </template>
@@ -1304,7 +1308,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
               <span class="product-column-text">{{ row.product?.productCode || row.product?.name || row.productId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="产品名称" min-width="160">
+          <el-table-column label="产品名称" :width="productNameColumnWidth">
             <template #default="{ row }">
               <span class="product-column-text">{{ row.product?.name || '-' }}</span>
             </template>
