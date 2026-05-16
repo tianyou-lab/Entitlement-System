@@ -1,29 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Grid, Key, Link, Monitor, Refresh, Setting, SwitchButton, Tickets, TrendCharts, User } from '@element-plus/icons-vue';
+import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
 import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
   { id: 'products', label: '产品管理', summary: '维护产品编码、名称与启停状态', icon: Box },
-  { id: 'plans', label: '套餐配置', summary: '配置授权周期、设备数和功能开关', icon: Grid },
+  { id: 'cardKeys', label: '卡密管理', summary: '按产品和类型生成、复制、导出卡密', icon: Key },
   { id: 'licenses', label: '授权管理', summary: '生成、复制和批量封禁授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
   { id: 'risk', label: '风控面板', summary: '跟踪风险事件、级别和处理状态', icon: DataAnalysis },
   { id: 'monitoring', label: '监控告警', summary: '查看 API 请求、失败率、延迟和数据库运行指标', icon: TrendCharts },
-  { id: 'admins', label: '管理员', summary: '创建运营账号并维护角色和启停状态', icon: User },
-  { id: 'channels', label: '渠道管理', summary: '管理租户、渠道和代理商资料', icon: Tickets },
-  { id: 'cardKeys', label: '卡密库存', summary: '生成、复制、导出和禁用批次卡密库存', icon: Key },
   { id: 'offline', label: '离线与解绑', summary: '创建离线授权包并审核解绑申请', icon: Connection },
   { id: 'protectors', label: '保护器适配', summary: '维护加壳和保护器适配器配置', icon: Cpu },
   { id: 'sdk', label: 'SDK 接入', summary: '下载客户端 SDK 并查看 Electron、C++、.NET 接入步骤', icon: Download },
   { id: 'logs', label: '运行日志', summary: '审计激活、心跳和后台操作记录', icon: Document },
 ] as const;
 
-type AdminSection = typeof navItems[number]['id'];
+type AdminSection = typeof navItems[number]['id'] | 'plans' | 'admins' | 'channels';
 const githubBaseUrl = 'https://github.com/tianyou-lab/Entitlement-System';
 const sdkResources = [
   { name: '完整源码 ZIP', description: '包含 Server、Admin、License UI、Electron/C++/.NET SDK 和 Demo', url: `${githubBaseUrl}/archive/refs/heads/main.zip`, action: '下载 ZIP' },
@@ -31,6 +28,14 @@ const sdkResources = [
   { name: 'C++ SDK Demo', description: 'C++ 客户端接入示例，适合原生桌面软件集成', url: `${githubBaseUrl}/tree/main/sdk-cpp`, action: '查看源码' },
   { name: '.NET SDK', description: '.NET 8 客户端与 Demo，支持公共 API HMAC 请求签名', url: `${githubBaseUrl}/tree/main/sdk-dotnet`, action: '查看源码' },
   { name: 'License UI', description: '可嵌入授权激活界面的前端组件工程', url: `${githubBaseUrl}/tree/main/license-ui`, action: '查看源码' },
+] as const;
+const cardKeyDurationOptions = [
+  { label: '时卡', value: 'hour' },
+  { label: '天卡', value: 'day' },
+  { label: '周卡', value: 'week' },
+  { label: '月卡', value: 'month' },
+  { label: '季卡', value: 'quarter' },
+  { label: '年卡', value: 'year' },
 ] as const;
 
 const token = ref(getToken());
@@ -70,6 +75,7 @@ const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, min
 const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', contactEmail: '' });
 const channelForm = reactive<CreateChannelInput>({ tenantId: undefined, channelCode: '', name: '', contact: '', notes: '' });
 const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productId: 0, planId: 0, channelId: undefined, cardKey: '', batchCode: '', expireAt: '' });
+const cardKeyDurationType = ref<typeof cardKeyDurationOptions[number]['value']>('day');
 const offlinePackageForm = reactive<CreateOfflinePackageInput>({ tenantId: undefined, licenseId: 0, deviceId: undefined, packageCode: '', expireAt: nextYearIso() });
 const riskEventForm = reactive<CreateRiskEventInput>({ tenantId: undefined, licenseId: undefined, deviceId: undefined, eventType: 'manual_review', severity: 'medium', summary: '' });
 const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 0, deviceId: 0, reason: '' });
@@ -470,7 +476,13 @@ async function changeChannelStatus(row: Channel, status: Channel['status']) {
 
 async function submitCardKey() {
   await withMessage('卡密已创建', async () => {
-    await createCardKey({ ...cardKeyForm, tenantId: optionalId(cardKeyForm.tenantId), channelId: optionalId(cardKeyForm.channelId), cardKey: cardKeyForm.cardKey || undefined, batchCode: cardKeyForm.batchCode || undefined, expireAt: cardKeyForm.expireAt || undefined });
+    await createCardKey({
+      productId: cardKeyForm.productId,
+      durationType: cardKeyDurationType.value,
+      cardKey: cardKeyForm.cardKey || undefined,
+      batchCode: cardKeyForm.batchCode || undefined,
+      expireAt: cardKeyForm.expireAt || undefined,
+    });
     cardKeyForm.cardKey = '';
     cardKeyForm.batchCode = '';
     await refreshAll();
@@ -1138,7 +1150,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'cardKeys'" class="section-page">
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
-            <div><strong>生成卡密</strong><span class="muted">适合渠道批次发放，可留空自动生成卡密串</span></div>
+            <div><strong>生成产品卡密</strong><span class="muted">选择产品和卡密类型，系统自动使用对应默认套餐</span></div>
             <div class="toolbar-actions">
               <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制卡密')">复制全部</el-button>
               <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的卡密')">复制选中</el-button>
@@ -1153,17 +1165,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
                 <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="套餐">
-              <el-select v-model="cardKeyForm.planId" style="width: 100%">
-                <el-option v-for="plan in plans" :key="plan.id" :label="plan.name" :value="plan.id" />
+            <el-form-item label="卡密类型">
+              <el-select v-model="cardKeyDurationType" style="width: 100%">
+                <el-option v-for="option in cardKeyDurationOptions" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
             </el-form-item>
-            <el-form-item label="渠道">
-              <el-select v-model="cardKeyForm.channelId" clearable style="width: 100%">
-                <el-option v-for="channel in channels" :key="channel.id" :label="channel.name" :value="channel.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="卡密（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
+            <el-form-item label="自定义卡密（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" /></el-form-item>
             <el-form-item label="批次"><el-input v-model="cardKeyForm.batchCode" /></el-form-item>
             <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
             <el-button type="primary" native-type="submit">生成卡密</el-button>

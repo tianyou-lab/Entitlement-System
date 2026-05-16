@@ -300,7 +300,8 @@ export interface CreateChannelInput {
 export interface CreateCardKeyInput {
   tenantId?: number;
   productId: number;
-  planId: number;
+  planId?: number;
+  durationType?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
   channelId?: number;
   cardKey?: string;
   batchCode?: string;

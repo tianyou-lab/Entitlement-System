@@ -29,6 +29,8 @@ import {
 import { ImportOfflinePackageDto } from './offline.dto';
 import { AdminRoles } from '../auth/admin-roles.decorator';
 
+type CardKeyDurationType = 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
 @UseGuards(AdminAuthGuard)
 @Controller('/admin')
 export class P2AdminController {
@@ -72,11 +74,12 @@ export class P2AdminController {
 
   @Post('card-keys')
   async createCardKey(@Body() dto: CreateCardKeyDto) {
+    const planId = dto.planId ?? (await this.ensureDefaultCardKeyPlan(dto.productId, dto.durationType ?? 'day')).id;
     const cardKey = await this.prisma.cardKey.create({
       data: {
         tenantId: dto.tenantId,
         productId: dto.productId,
-        planId: dto.planId,
+        planId,
         channelId: dto.channelId,
         cardKey: dto.cardKey ?? this.randomCode('CARD'),
         batchCode: dto.batchCode,
@@ -242,6 +245,32 @@ export class P2AdminController {
 
   private randomCode(prefix: string) {
     return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+  }
+
+  private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType) {
+    const config: Record<CardKeyDurationType, { code: string; name: string; days: number; flags?: Record<string, unknown> }> = {
+      hour: { code: 'default_hour', name: '时卡', days: 1, flags: { durationUnit: 'hour', durationHours: 1 } },
+      day: { code: 'default_day', name: '天卡', days: 1 },
+      week: { code: 'default_week', name: '周卡', days: 7 },
+      month: { code: 'default_month', name: '月卡', days: 30 },
+      quarter: { code: 'default_quarter', name: '季卡', days: 90 },
+      year: { code: 'default_year', name: '年卡', days: 365 },
+    };
+    const plan = config[durationType];
+    return this.prisma.plan.upsert({
+      where: { productId_planCode: { productId, planCode: plan.code } },
+      create: {
+        productId,
+        planCode: plan.code,
+        name: plan.name,
+        durationDays: plan.days,
+        maxDevices: 1,
+        maxConcurrency: 1,
+        graceHours: 24,
+        featureFlags: (plan.flags ?? {}) as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
   }
 }
 

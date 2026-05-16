@@ -57,9 +57,14 @@ export class CreateCardKeyDto {
   @IsInt()
   productId: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  planId: number;
+  planId?: number;
+
+  @IsOptional()
+  @IsIn(['hour', 'day', 'week', 'month', 'quarter', 'year'])
+  durationType?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
 
   @IsOptional()
   @Type(() => Number)
