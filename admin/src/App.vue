@@ -1271,22 +1271,22 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </div>
           </div>
           <el-form class="form-grid card-key-form" label-position="top" @submit.prevent="submitCardKey">
-            <el-form-item class="card-key-compact" label="产品">
+            <el-form-item class="card-key-product" label="产品">
               <el-select v-model="cardKeyForm.productId" style="width: 100%">
                 <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
               </el-select>
             </el-form-item>
-            <el-form-item class="card-key-compact" label="授权类型">
+            <el-form-item class="card-key-mini" label="授权类型">
               <el-select v-model="cardKeyDurationType" style="width: 100%">
                 <el-option v-for="option in cardKeyDurationOptions" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
             </el-form-item>
-            <el-form-item v-if="cardKeyDurationType === 'hour'" class="card-key-compact" label="小时数">
+            <el-form-item v-if="cardKeyDurationType === 'hour'" class="card-key-mini" label="小时数">
               <el-input-number v-model="cardKeyDurationHours" :min="1" :max="720" style="width: 100%" />
             </el-form-item>
-            <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
-            <el-form-item class="card-key-compact" label="数量"><el-input-number v-model="cardKeyQuantity" :min="1" :max="500" style="width: 100%" /></el-form-item>
-            <el-button type="primary" native-type="submit">生成授权码</el-button>
+            <el-form-item class="card-key-custom" label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
+            <el-form-item class="card-key-mini" label="数量"><el-input-number v-model="cardKeyQuantity" :min="1" :max="500" style="width: 100%" /></el-form-item>
+            <el-button class="card-key-submit" type="primary" native-type="submit">生成授权码</el-button>
           </el-form>
         </div>
         <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无授权码，点击上方按钮生成" @selection-change="handleCardKeySelection">
