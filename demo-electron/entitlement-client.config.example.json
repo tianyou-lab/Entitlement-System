@@ -1,0 +1,7 @@
+{
+  "apiBaseUrl": "https://license.example.com",
+  "productCode": "demo_app",
+  "appVersion": "1.0.0",
+  "heartbeatIntervalMs": 30000,
+  "requestSigningSecret": "replace-with-public-api-signing-secret"
+}
