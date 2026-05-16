@@ -19,7 +19,7 @@ export class LicensesController {
   @Post()
   async create(@Body() dto: CreateLicenseDto) {
     const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    const expireAt = dto.expireAt ? new Date(dto.expireAt) : new Date(Date.now() + (plan?.durationDays ?? 365) * 24 * 60 * 60 * 1000);
+    const expireAt = dto.expireAt ? new Date(dto.expireAt) : new Date(Date.now() + this.planDurationMs(plan));
     const plainLicenseKey = dto.licenseKey ?? this.generateLicenseKey();
     const license = await this.prisma.license.create({
       data: {
@@ -63,6 +63,16 @@ export class LicensesController {
 
   private generateLicenseKey() {
     return `LIC-${randomBytes(6).toString('hex').toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}`;
+  }
+
+  private planDurationMs(plan: { durationDays: number; featureFlags: Prisma.JsonValue } | null) {
+    if (plan?.featureFlags && typeof plan.featureFlags === 'object' && !Array.isArray(plan.featureFlags)) {
+      const durationSeconds = (plan.featureFlags as Record<string, unknown>).durationSeconds;
+      if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+        return durationSeconds * 1000;
+      }
+    }
+    return (plan?.durationDays ?? 365) * 24 * 60 * 60 * 1000;
   }
 
   private publicLicense<T extends { licenseKeyHash?: string }>(license: T) {

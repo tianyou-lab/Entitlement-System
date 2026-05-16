@@ -89,9 +89,6 @@ export class CreateCardKeyDto {
   @IsIn(['unused', 'issued', 'redeemed', 'disabled'])
   status?: 'unused' | 'issued' | 'redeemed' | 'disabled';
 
-  @IsOptional()
-  @IsString()
-  expireAt?: string;
 }
 
 export class UpdateCardKeyStatusDto {

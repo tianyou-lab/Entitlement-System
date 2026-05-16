@@ -93,7 +93,6 @@ export class P2AdminController {
         cardKey: dto.cardKey ?? this.generateCardKey(durationType),
         batchCode: dto.batchCode,
         status: dto.status,
-        expireAt: dto.expireAt ? new Date(dto.expireAt) : undefined,
       },
     });
     await this.audit.admin({ targetType: 'card_key', targetId: cardKey.id, action: 'create', afterData: cardKey });
@@ -279,18 +278,18 @@ export class P2AdminController {
           maxDevices: 1,
           maxConcurrency: 1,
           graceHours: 24,
-          featureFlags: { durationUnit: 'hour', durationHours: hours } as Prisma.InputJsonValue,
+          featureFlags: { durationUnit: 'hour', durationHours: hours, durationSeconds: hours * 60 * 60 } as Prisma.InputJsonValue,
         },
         update: {},
       });
     }
-    const config: Record<CardKeyDurationType, { code: string; name: string; days: number; flags?: Record<string, unknown> }> = {
-      hour: { code: 'default_hour_1', name: '1小时卡', days: 1, flags: { durationUnit: 'hour', durationHours: 1 } },
-      day: { code: 'default_day', name: '天卡', days: 1 },
-      week: { code: 'default_week', name: '周卡', days: 7 },
-      month: { code: 'default_month', name: '月卡', days: 30 },
-      quarter: { code: 'default_quarter', name: '季卡', days: 90 },
-      year: { code: 'default_year', name: '年卡', days: 365 },
+    const config: Record<CardKeyDurationType, { code: string; name: string; days: number; seconds: number; flags?: Record<string, unknown> }> = {
+      hour: { code: 'default_hour_1', name: '1小时卡', days: 1, seconds: 60 * 60, flags: { durationUnit: 'hour', durationHours: 1 } },
+      day: { code: 'default_day', name: '天卡', days: 1, seconds: 24 * 60 * 60 },
+      week: { code: 'default_week', name: '周卡', days: 7, seconds: 7 * 24 * 60 * 60 },
+      month: { code: 'default_month', name: '月卡', days: 30, seconds: 30 * 24 * 60 * 60 },
+      quarter: { code: 'default_quarter', name: '季卡', days: 90, seconds: 90 * 24 * 60 * 60 },
+      year: { code: 'default_year', name: '年卡', days: 365, seconds: 365 * 24 * 60 * 60 },
     };
     const plan = config[durationType];
     return this.prisma.plan.upsert({
@@ -303,7 +302,7 @@ export class P2AdminController {
         maxDevices: 1,
         maxConcurrency: 1,
         graceHours: 24,
-        featureFlags: (plan.flags ?? {}) as Prisma.InputJsonValue,
+        featureFlags: { ...(plan.flags ?? {}), durationSeconds: plan.seconds } as Prisma.InputJsonValue,
       },
       update: {},
     });

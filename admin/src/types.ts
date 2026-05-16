@@ -312,7 +312,6 @@ export interface CreateCardKeyInput {
   channelId?: number;
   cardKey?: string;
   batchCode?: string;
-  expireAt?: string;
 }
 
 export interface CreateOfflinePackageInput {

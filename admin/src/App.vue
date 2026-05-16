@@ -76,7 +76,7 @@ const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, lice
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
 const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', contactEmail: '' });
 const channelForm = reactive<CreateChannelInput>({ tenantId: undefined, channelCode: '', name: '', contact: '', notes: '' });
-const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productId: 0, planId: 0, channelId: undefined, cardKey: '', batchCode: '', expireAt: '' });
+const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productId: 0, planId: 0, channelId: undefined, cardKey: '', batchCode: '' });
 const cardKeyDurationType = ref<typeof cardKeyDurationOptions[number]['value']>('day');
 const cardKeyQuantity = ref(1);
 const cardKeyDurationHours = ref(1);
@@ -398,10 +398,7 @@ function cardKeyExportRows(rows: CardKey[]) {
     cardKey: row.cardKey,
     product: row.product?.productCode ?? row.product?.name ?? row.productId,
     plan: row.plan?.planCode ?? row.plan?.name ?? row.planId,
-    channel: row.channel?.name ?? '',
-    batchCode: row.batchCode ?? '',
     status: statusText(row.status),
-    expireAt: row.expireAt ?? '',
     license: licenseLabel(row.license),
   }));
 }
@@ -423,16 +420,13 @@ function exportCardKeys(rows: CardKey[], emptyMessage: string, scope: 'all' | 's
     ElMessage.warning(emptyMessage);
     return;
   }
-  const headers = ['ID', '授权码', '产品', '类型', '渠道', '批次', '状态', '到期时间', '关联授权'];
+  const headers = ['ID', '授权码', '产品', '类型', '状态', '关联授权'];
   const csvRows = cardKeyExportRows(rows).map((row) => [
     row.id,
     row.cardKey,
     row.product,
     row.plan,
-    row.channel,
-    row.batchCode,
     row.status,
-    row.expireAt,
     row.license,
   ]);
   downloadCsv(`card-keys-${scope}-${new Date().toISOString().slice(0, 10)}.csv`, [headers, ...csvRows]);
@@ -548,7 +542,6 @@ async function submitCardKey() {
       durationType: cardKeyDurationType.value,
       durationHours: cardKeyDurationType.value === 'hour' ? cardKeyDurationHours.value : undefined,
       cardKey: cardKeyForm.cardKey || undefined,
-      expireAt: cardKeyForm.expireAt || undefined,
     })));
     cardKeyForm.cardKey = '';
     cardKeyQuantity.value = 1;
@@ -1293,7 +1286,6 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </el-form-item>
             <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
             <el-form-item class="card-key-compact" label="数量"><el-input-number v-model="cardKeyQuantity" :min="1" :max="500" style="width: 100%" /></el-form-item>
-            <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
             <el-button type="primary" native-type="submit">生成授权码</el-button>
           </el-form>
         </div>
@@ -1309,7 +1301,6 @@ async function withMessage(message: string, action: () => Promise<void>) {
           </el-table-column>
           <el-table-column prop="product.productCode" label="产品" width="130" />
           <el-table-column prop="plan.name" label="类型" width="130" />
-          <el-table-column prop="expireAt" label="到期时间" min-width="190" sortable />
           <el-table-column label="状态" width="120" sortable>
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
