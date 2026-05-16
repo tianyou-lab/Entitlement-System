@@ -1304,6 +1304,11 @@ async function withMessage(message: string, action: () => Promise<void>) {
               <span class="product-column-text">{{ row.product?.productCode || row.product?.name || row.productId }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="产品名称" min-width="160">
+            <template #default="{ row }">
+              <span class="product-column-text">{{ row.product?.name || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="plan.name" label="类型" width="130" />
           <el-table-column label="状态" width="120" sortable>
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
