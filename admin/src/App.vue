@@ -258,7 +258,7 @@ function formatBytes(value: number | null) {
 }
 
 function generateProductKey() {
-  const bytes = new Uint8Array(8);
+  const bytes = new Uint8Array(16);
   if (globalThis.crypto?.getRandomValues) {
     globalThis.crypto.getRandomValues(bytes);
   } else {
@@ -782,21 +782,22 @@ async function withMessage(message: string, action: () => Promise<void>) {
           <div class="toolbar">
             <div><strong>创建产品</strong><span class="muted">产品 Key 自动生成，用于客户端 productCode 配置</span></div>
           </div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitProduct">
-            <el-form-item label="产品 Key">
-              <el-input v-model="productForm.productCode" readonly>
-                <template #append>
-                  <el-button @click="refreshProductKey">重新生成</el-button>
-                </template>
-              </el-input>
-            </el-form-item>
+          <el-form class="product-form-grid" label-position="top" @submit.prevent="submitProduct">
             <el-form-item label="产品名称">
               <el-input v-model="productForm.name" placeholder="Demo App" />
+            </el-form-item>
+            <el-form-item label="产品 Key">
+              <div class="product-key-control">
+                <el-input v-model="productForm.productCode" readonly />
+                <el-button @click="refreshProductKey">重新生成</el-button>
+              </div>
             </el-form-item>
             <el-form-item class="full" label="描述">
               <el-input v-model="productForm.description" />
             </el-form-item>
-            <el-button type="primary" native-type="submit">创建产品</el-button>
+            <div class="form-actions">
+              <el-button type="primary" native-type="submit">创建产品</el-button>
+            </div>
           </el-form>
         </div>
         <el-table :data="products" style="margin-top: 18px">

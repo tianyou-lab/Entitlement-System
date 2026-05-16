@@ -193,6 +193,9 @@ button, input, textarea { font: inherit; }
 .code-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .code-grid pre { margin: 0; min-height: 96px; overflow-x: auto; padding: 14px; border-radius: 8px; background: #101827; color: #dbeafe; font-size: 13px; line-height: 1.6; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.product-form-grid { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(360px, 1.4fr); gap: 14px; align-items: end; }
+.product-key-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 .full { grid-column: 1 / -1; }
 .muted { color: var(--muted); }
 .data-table, .el-table { margin-top: 18px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
@@ -269,7 +272,7 @@ button, input, textarea { font: inherit; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sdk-grid, .code-grid { grid-template-columns: 1fr; }
-  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid, .product-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -285,7 +288,8 @@ button, input, textarea { font: inherit; }
   .header, .module-header { align-items: flex-start; flex-direction: column; }
   .toolbar { align-items: flex-start; flex-direction: column; }
   .toolbar-actions { justify-content: flex-start; }
-  .metric-grid, .overview-grid, .form-grid { grid-template-columns: 1fr; }
+  .metric-grid, .overview-grid, .form-grid, .product-form-grid, .product-key-control { grid-template-columns: 1fr; }
+  .form-actions { justify-content: flex-start; }
   .sdk-card { flex-direction: column; }
   .section-heading { padding-bottom: 14px; }
 }
