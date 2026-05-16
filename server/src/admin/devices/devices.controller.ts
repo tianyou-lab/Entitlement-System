@@ -6,6 +6,25 @@ import { PrismaService } from '../../database/prisma.service';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { UpdateDeviceStatusDto } from './devices.dto';
 
+const DEFAULT_DEVICE_ONLINE_WINDOW_MS = 15 * 60 * 1000;
+
+type DeviceActivity = {
+  status: DeviceStatus;
+  lastSeenAt: Date | null;
+  heartbeatLogs: Array<{ createdAt: Date }>;
+};
+
+export function readDeviceOnlineWindowMs() {
+  const seconds = Number(process.env.DEVICE_ONLINE_WINDOW_SECONDS);
+  if (!Number.isFinite(seconds) || seconds <= 0) return DEFAULT_DEVICE_ONLINE_WINDOW_MS;
+  return seconds * 1000;
+}
+
+export function isDeviceOnline(device: DeviceActivity, now = new Date(), onlineWindowMs = readDeviceOnlineWindowMs()) {
+  const lastActivityAt = device.heartbeatLogs[0]?.createdAt ?? device.lastSeenAt;
+  return device.status === DeviceStatus.active && !!lastActivityAt && lastActivityAt.getTime() >= now.getTime() - onlineWindowMs;
+}
+
 @UseGuards(AdminAuthGuard)
 @Controller('/admin/devices')
 export class DevicesController {
@@ -30,11 +49,6 @@ export class DevicesController {
             cardKeys: { select: { cardKey: true }, orderBy: { id: 'desc' }, take: 1 },
           },
         },
-        leases: {
-          where: { status: 'active', expireAt: { gt: new Date() } },
-          select: { id: true },
-          take: 1,
-        },
         heartbeatLogs: {
           where: { actionType: 'heartbeat' },
           select: { createdAt: true },
@@ -48,9 +62,8 @@ export class DevicesController {
     return ok(devices.map((device) => ({
       ...device,
       cardKey: device.license.cardKeys[0]?.cardKey ?? null,
-      onlineStatus: device.status === DeviceStatus.active && device.leases.length > 0 ? 'online' : 'offline',
+      onlineStatus: isDeviceOnline(device) ? 'online' : 'offline',
       lastHeartbeatAt: device.heartbeatLogs[0]?.createdAt ?? null,
-      leases: undefined,
       heartbeatLogs: undefined,
     })));
   }
