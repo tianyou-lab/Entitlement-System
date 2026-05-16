@@ -7,8 +7,7 @@ import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdm
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
-  { id: 'products', label: '产品管理', summary: '创建产品并自动生成防重复产品 Key', icon: Box },
-  { id: 'plans', label: '套餐配置', summary: '设置绑定设备数、在线并发数和多设备登录策略', icon: Setting },
+  { id: 'products', label: '应用管理', summary: '创建应用并配置授权套餐、设备绑定和在线并发策略', icon: Box },
   { id: 'cardKeys', label: '授权管理', summary: '按产品和时长类型生成、复制、导出授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
@@ -20,7 +19,7 @@ const navItems = [
   { id: 'logs', label: '运行日志', summary: '审计激活、心跳和后台操作记录', icon: Document },
 ] as const;
 
-type AdminSection = typeof navItems[number]['id'] | 'plans' | 'admins' | 'channels' | 'licenses';
+type AdminSection = typeof navItems[number]['id'] | 'admins' | 'channels' | 'licenses';
 const githubBaseUrl = 'https://github.com/tianyou-lab/Entitlement-System';
 const sdkResources = [
   { name: '完整源码 ZIP', description: '包含 Server、Admin、License UI、Electron/C++/.NET SDK 和 Demo', url: `${githubBaseUrl}/archive/refs/heads/main.zip`, action: '下载 ZIP' },
@@ -1035,25 +1034,28 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'products'" class="section-page">
         <div class="table-card">
           <div class="toolbar">
-            <div><strong>创建产品</strong><span class="muted">产品 Key 自动生成，用于客户端 productCode 配置</span></div>
+            <div><strong>创建应用</strong><span class="muted">应用 Key 自动生成，用于客户端 productCode 配置</span></div>
           </div>
           <el-form class="product-form-grid product-create-form" label-position="top" @submit.prevent="submitProduct">
-            <el-form-item class="product-key-item" label="产品 Key">
+            <el-form-item class="product-key-item" label="应用 Key">
               <div class="product-key-control">
                 <el-input v-model="productForm.productCode" readonly />
                 <el-button @click="refreshProductKey">重新生成</el-button>
               </div>
             </el-form-item>
-            <el-form-item label="产品名称">
+            <el-form-item label="应用名称">
               <el-input v-model="productForm.name" placeholder="Demo App" />
             </el-form-item>
-            <el-form-item label="产品描述">
-              <el-input v-model="productForm.description" placeholder="产品用途或接入说明" />
+            <el-form-item label="应用描述">
+              <el-input v-model="productForm.description" placeholder="应用用途或接入说明" />
             </el-form-item>
             <div class="form-actions">
-              <el-button type="primary" native-type="submit">创建产品</el-button>
+              <el-button type="primary" native-type="submit">创建应用</el-button>
             </div>
           </el-form>
+        </div>
+        <div class="toolbar section-toolbar">
+          <div><strong>管理应用</strong><span class="muted">查看应用 Key、客户端签名配置和应用状态</span></div>
         </div>
         <el-table :data="products" style="margin-top: 18px">
           <el-table-column type="expand" width="52">
@@ -1064,7 +1066,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
                     <strong>Win 客户端接入配置</strong>
                     <span class="muted">复制后放入打包版 Electron resources/entitlement-client.config.json</span>
                   </div>
-                  <el-button size="small" @click="copyText(row.productCode)">复制产品 Key</el-button>
+                  <el-button size="small" @click="copyText(row.productCode)">复制应用 Key</el-button>
                 </div>
                 <div v-if="row.requestSigningSecrets?.length" class="client-config-list">
                   <article v-for="secret in row.requestSigningSecrets" :key="secret.keyId ?? `${secret.productCode}-${secret.appVersion}`" class="client-config-item">
@@ -1086,12 +1088,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
                     </div>
                   </article>
                 </div>
-                <el-alert v-else title="当前产品没有匹配的 PUBLIC_API_SIGNING_SECRETS 条目" type="warning" :closable="false" />
+                <el-alert v-else title="当前应用没有匹配的 PUBLIC_API_SIGNING_SECRETS 条目" type="warning" :closable="false" />
               </div>
             </template>
           </el-table-column>
           <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column label="产品 Key" min-width="380">
+          <el-table-column label="应用 Key" min-width="380">
             <template #default="{ row }">
               <div class="key-cell">
                 <span class="product-key-value">{{ row.productCode }}</span>
@@ -1123,12 +1125,12 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </template>
           </el-table-column>
         </el-table>
-        <el-dialog v-model="productEditorVisible" title="编辑产品" width="520px">
+        <el-dialog v-model="productEditorVisible" title="编辑应用" width="520px">
           <el-form label-position="top" @submit.prevent="submitProductEdit">
-            <el-form-item label="产品名称">
+            <el-form-item label="应用名称">
               <el-input v-model="productEditForm.name" />
             </el-form-item>
-            <el-form-item label="产品描述">
+            <el-form-item label="应用描述">
               <el-input v-model="productEditForm.description" type="textarea" :rows="4" />
             </el-form-item>
           </el-form>
@@ -1137,13 +1139,10 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-button type="primary" @click="submitProductEdit">保存</el-button>
           </template>
         </el-dialog>
-      </section>
-
-      <section v-if="activeSection === 'plans'" class="section-page">
         <div class="table-card">
-          <div class="toolbar"><strong>创建套餐</strong></div>
+          <div class="toolbar"><strong>创建授权套餐</strong><span class="muted">绑定设备数、在线并发数和顶号策略都在这里配置</span></div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitPlan">
-            <el-form-item label="产品">
+            <el-form-item label="所属应用">
               <el-select v-model="planForm.productId" style="width: 100%">
                 <el-option v-for="product in products" :key="product.id" :label="`${product.name} (${product.productCode})`" :value="product.id" />
               </el-select>
@@ -1179,6 +1178,9 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </el-form-item>
             <el-button type="primary" native-type="submit">创建套餐</el-button>
           </el-form>
+        </div>
+        <div class="toolbar section-toolbar">
+          <div><strong>管理授权套餐</strong><span class="muted">直接调整每个应用套餐的设备绑定、在线并发和多设备策略</span></div>
         </div>
         <el-table :data="plans" style="margin-top: 18px">
           <el-table-column prop="id" label="ID" width="80" />

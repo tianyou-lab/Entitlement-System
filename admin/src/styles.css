@@ -197,6 +197,7 @@ button, input, textarea { font: inherit; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .toolbar strong { display: block; color: #0e1726; }
 .toolbar .muted { display: block; margin-top: 4px; font-size: 12px; }
+.section-toolbar { margin-top: 22px; }
 .toolbar-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 .log-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .table-card { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }

@@ -107,7 +107,7 @@ describe('App', () => {
     expect(api.listPlans).toHaveBeenCalled();
     expect(api.listLicenses).toHaveBeenCalled();
     expect(wrapper.text()).toContain('授权与卡密管理后台');
-    expect(wrapper.text()).toContain('产品管理');
+    expect(wrapper.text()).toContain('应用管理');
     expect(wrapper.text()).toContain('签名密钥匹配矩阵');
     expect(wrapper.text()).toContain('PUBLIC_API_SIGNING_SECRETS');
   });
