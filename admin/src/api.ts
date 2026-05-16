@@ -141,6 +141,10 @@ export function updateCardKeyStatus(id: number, status: CardKey['status']) {
   return request<CardKey>(`/admin/card-keys/${id}/status`, { method: 'PUT', body: { status } });
 }
 
+export function deleteCardKey(id: number) {
+  return request<{ deleted: boolean }>(`/admin/card-keys/${id}`, { method: 'DELETE' });
+}
+
 export function listOfflinePackages() {
   return request<OfflinePackage[]>('/admin/offline-packages');
 }

@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { OfflinePackageStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { AppError } from '../../common/errors';
@@ -82,14 +82,15 @@ export class P2AdminController {
 
   @Post('card-keys')
   async createCardKey(@Body() dto: CreateCardKeyDto) {
-    const planId = dto.planId ?? (await this.ensureDefaultCardKeyPlan(dto.productId, dto.durationType ?? 'day')).id;
+    const durationType = dto.durationType ?? 'day';
+    const planId = dto.planId ?? (await this.ensureDefaultCardKeyPlan(dto.productId, durationType, dto.durationHours)).id;
     const cardKey = await this.prisma.cardKey.create({
       data: {
         tenantId: dto.tenantId,
         productId: dto.productId,
         planId,
         channelId: dto.channelId,
-        cardKey: dto.cardKey ?? this.generateCardKey(dto.durationType ?? 'day'),
+        cardKey: dto.cardKey ?? this.generateCardKey(durationType),
         batchCode: dto.batchCode,
         status: dto.status,
         expireAt: dto.expireAt ? new Date(dto.expireAt) : undefined,
@@ -110,6 +111,12 @@ export class P2AdminController {
     const cardKey = await this.prisma.cardKey.update({ where: { id: Number(id) }, data: { status: dto.status } });
     await this.audit.admin({ targetType: 'card_key', targetId: cardKey.id, action: 'update_status', beforeData: before, afterData: cardKey });
     return ok(cardKey);
+  }
+
+  @Delete('card-keys/:id')
+  async deleteCardKey(@Param('id') id: string) {
+    await this.prisma.cardKey.delete({ where: { id: Number(id) } });
+    return ok({ deleted: true }, 'deleted');
   }
 
   @Post('offline-packages')
@@ -259,9 +266,26 @@ export class P2AdminController {
     return `${cardKeyPrefixes[durationType]}${randomBytes(16).toString('hex').toUpperCase()}`;
   }
 
-  private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType) {
+  private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType, durationHours?: number) {
+    if (durationType === 'hour') {
+      const hours = Math.max(1, durationHours ?? 1);
+      return this.prisma.plan.upsert({
+        where: { productId_planCode: { productId, planCode: `default_hour_${hours}` } },
+        create: {
+          productId,
+          planCode: `default_hour_${hours}`,
+          name: `${hours}小时卡`,
+          durationDays: Math.max(1, Math.ceil(hours / 24)),
+          maxDevices: 1,
+          maxConcurrency: 1,
+          graceHours: 24,
+          featureFlags: { durationUnit: 'hour', durationHours: hours } as Prisma.InputJsonValue,
+        },
+        update: {},
+      });
+    }
     const config: Record<CardKeyDurationType, { code: string; name: string; days: number; flags?: Record<string, unknown> }> = {
-      hour: { code: 'default_hour', name: '时卡', days: 1, flags: { durationUnit: 'hour', durationHours: 1 } },
+      hour: { code: 'default_hour_1', name: '1小时卡', days: 1, flags: { durationUnit: 'hour', durationHours: 1 } },
       day: { code: 'default_day', name: '天卡', days: 1 },
       week: { code: 'default_week', name: '周卡', days: 7 },
       month: { code: 'default_month', name: '月卡', days: 30 },

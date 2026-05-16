@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
 import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
@@ -78,6 +78,8 @@ const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', conta
 const channelForm = reactive<CreateChannelInput>({ tenantId: undefined, channelCode: '', name: '', contact: '', notes: '' });
 const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productId: 0, planId: 0, channelId: undefined, cardKey: '', batchCode: '', expireAt: '' });
 const cardKeyDurationType = ref<typeof cardKeyDurationOptions[number]['value']>('day');
+const cardKeyQuantity = ref(1);
+const cardKeyDurationHours = ref(1);
 const offlinePackageForm = reactive<CreateOfflinePackageInput>({ tenantId: undefined, licenseId: 0, deviceId: undefined, packageCode: '', expireAt: nextYearIso() });
 const riskEventForm = reactive<CreateRiskEventInput>({ tenantId: undefined, licenseId: undefined, deviceId: undefined, eventType: 'manual_review', severity: 'medium', summary: '' });
 const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 0, deviceId: 0, reason: '' });
@@ -538,16 +540,18 @@ async function changeChannelStatus(row: Channel, status: Channel['status']) {
 }
 
 async function submitCardKey() {
-  await withMessage('授权码已创建', async () => {
-    await createCardKey({
+  const count = cardKeyForm.cardKey ? 1 : cardKeyQuantity.value;
+  if (cardKeyForm.cardKey && cardKeyQuantity.value > 1) ElMessage.warning('自定义授权码只能生成 1 个，已按 1 个处理');
+  await withMessage(`授权码已创建 ${count} 个`, async () => {
+    await Promise.all(Array.from({ length: count }, () => createCardKey({
       productId: cardKeyForm.productId,
       durationType: cardKeyDurationType.value,
+      durationHours: cardKeyDurationType.value === 'hour' ? cardKeyDurationHours.value : undefined,
       cardKey: cardKeyForm.cardKey || undefined,
-      batchCode: cardKeyForm.batchCode || undefined,
       expireAt: cardKeyForm.expireAt || undefined,
-    });
+    })));
     cardKeyForm.cardKey = '';
-    cardKeyForm.batchCode = '';
+    cardKeyQuantity.value = 1;
     await refreshAll();
   });
 }
@@ -555,6 +559,22 @@ async function submitCardKey() {
 async function changeCardKeyStatus(row: CardKey, status: CardKey['status']) {
   await withMessage('授权码状态已更新', async () => {
     await updateCardKeyStatus(row.id, status);
+    await refreshAll();
+  });
+}
+
+async function removeCardKey(row: CardKey) {
+  try {
+    await ElMessageBox.confirm(`确认移除授权码「${row.cardKey}」？`, '移除授权码', {
+      confirmButtonText: '移除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  await withMessage('授权码已移除', async () => {
+    await deleteCardKey(row.id);
     await refreshAll();
   });
 }
@@ -1257,19 +1277,22 @@ async function withMessage(message: string, action: () => Promise<void>) {
               <el-button type="danger" plain :disabled="!selectedCardKeys.length" @click="batchDisableCardKeys">批量禁用</el-button>
             </div>
           </div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitCardKey">
-            <el-form-item label="产品">
+          <el-form class="form-grid card-key-form" label-position="top" @submit.prevent="submitCardKey">
+            <el-form-item class="card-key-compact" label="产品">
               <el-select v-model="cardKeyForm.productId" style="width: 100%">
                 <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
               </el-select>
             </el-form-item>
-            <el-form-item label="授权类型">
+            <el-form-item class="card-key-compact" label="授权类型">
               <el-select v-model="cardKeyDurationType" style="width: 100%">
                 <el-option v-for="option in cardKeyDurationOptions" :key="option.value" :label="option.label" :value="option.value" />
               </el-select>
             </el-form-item>
+            <el-form-item v-if="cardKeyDurationType === 'hour'" class="card-key-compact" label="小时数">
+              <el-input-number v-model="cardKeyDurationHours" :min="1" :max="720" style="width: 100%" />
+            </el-form-item>
             <el-form-item label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
-            <el-form-item label="批次"><el-input v-model="cardKeyForm.batchCode" /></el-form-item>
+            <el-form-item class="card-key-compact" label="数量"><el-input-number v-model="cardKeyQuantity" :min="1" :max="500" style="width: 100%" /></el-form-item>
             <el-form-item label="到期时间"><el-input v-model="cardKeyForm.expireAt" placeholder="2027-01-01T00:00:00.000Z" /></el-form-item>
             <el-button type="primary" native-type="submit">生成授权码</el-button>
           </el-form>
@@ -1286,16 +1309,15 @@ async function withMessage(message: string, action: () => Promise<void>) {
           </el-table-column>
           <el-table-column prop="product.productCode" label="产品" width="130" />
           <el-table-column prop="plan.name" label="类型" width="130" />
-          <el-table-column prop="channel.name" label="渠道" width="140" />
-          <el-table-column prop="batchCode" label="批次" width="140" />
           <el-table-column prop="expireAt" label="到期时间" min-width="190" sortable />
           <el-table-column label="状态" width="120" sortable>
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
+          <el-table-column label="操作" width="240" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="changeCardKeyStatus(row, 'issued')">发放</el-button>
-              <el-button size="small" type="danger" @click="changeCardKeyStatus(row, 'disabled')">禁用</el-button>
+              <el-button size="small" type="success" plain @click="changeCardKeyStatus(row, 'unused')">启用</el-button>
+              <el-button size="small" type="warning" plain @click="changeCardKeyStatus(row, 'disabled')">禁用</el-button>
+              <el-button size="small" type="danger" plain @click="removeCardKey(row)">移除</el-button>
             </template>
           </el-table-column>
         </el-table>

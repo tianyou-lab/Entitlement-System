@@ -193,6 +193,8 @@ button, input, textarea { font: inherit; }
 .code-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .code-grid pre { margin: 0; min-height: 96px; overflow-x: auto; padding: 14px; border-radius: 8px; background: #101827; color: #dbeafe; font-size: 13px; line-height: 1.6; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.card-key-form { grid-template-columns: minmax(120px, .5fr) minmax(110px, .5fr) minmax(160px, .8fr) minmax(110px, .45fr) minmax(220px, 1fr) auto; }
+.card-key-form .el-form-item { margin-bottom: 0; }
 .product-form-grid { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1fr) auto; gap: 14px; align-items: end; }
 .product-create-form .el-form-item { margin-bottom: 0; }
 .product-key-item { grid-column: 1 / -1; }
@@ -278,7 +280,7 @@ button, input, textarea { font: inherit; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sdk-grid, .code-grid { grid-template-columns: 1fr; }
-  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid, .card-key-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .product-form-grid { grid-template-columns: minmax(180px, .7fr) minmax(280px, 1fr) auto; }
   .form-actions { justify-content: flex-start; }
 }
@@ -296,7 +298,7 @@ button, input, textarea { font: inherit; }
   .header, .module-header { align-items: flex-start; flex-direction: column; }
   .toolbar { align-items: flex-start; flex-direction: column; }
   .toolbar-actions { justify-content: flex-start; }
-  .metric-grid, .overview-grid, .form-grid, .product-form-grid, .product-key-control { grid-template-columns: 1fr; }
+  .metric-grid, .overview-grid, .form-grid, .card-key-form, .product-form-grid, .product-key-control { grid-template-columns: 1fr; }
   .form-actions { justify-content: flex-start; }
   .product-key-value { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
   .row-actions { flex-wrap: wrap; }

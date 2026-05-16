@@ -308,6 +308,7 @@ export interface CreateCardKeyInput {
   productId: number;
   planId?: number;
   durationType?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+  durationHours?: number;
   channelId?: number;
   cardKey?: string;
   batchCode?: string;

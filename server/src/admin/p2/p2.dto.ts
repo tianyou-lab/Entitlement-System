@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateTenantDto {
   @IsString()
@@ -65,6 +65,12 @@ export class CreateCardKeyDto {
   @IsOptional()
   @IsIn(['hour', 'day', 'week', 'month', 'quarter', 'year'])
   durationType?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationHours?: number;
 
   @IsOptional()
   @Type(() => Number)
