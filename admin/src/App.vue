@@ -97,6 +97,60 @@ const onlineDevices = computed(() => devices.value.filter((device) => device.sta
 const openRisks = computed(() => riskSummary.value.open);
 const activeNavItem = computed(() => navItems.find((item) => item.id === activeSection.value) ?? navItems[0]);
 const topErrorCodes = computed(() => Object.entries(monitoringMetrics.value.api.errorCodes).sort((left, right) => right[1] - left[1]).slice(0, 8));
+const activeProducts = computed(() => products.value.filter((product) => product.status === 'active').length);
+const productsMissingPolicy = computed(() => products.value.filter((product) => !versionPolicies.value.some((policy) => policy.productId === product.id)).length);
+const pendingUnbindRequests = computed(() => unbindRequests.value.filter((request) => request.status === 'pending').length);
+const activeOfflinePackages = computed(() => offlinePackages.value.filter((item) => item.status === 'active').length);
+const forcedUpgradePolicies = computed(() => versionPolicies.value.filter((policy) => policy.forceUpgrade).length);
+const requestFailureRate = computed(() => monitoringMetrics.value.api.requests.failureRate);
+const signingMode = computed(() => '产品/版本级密钥');
+const consoleHealthItems = computed(() => [
+  {
+    label: '产品版本策略覆盖',
+    value: productsMissingPolicy.value === 0 ? '正常' : `${productsMissingPolicy.value} 个产品缺失`,
+    status: productsMissingPolicy.value === 0 ? 'success' : 'warning',
+    detail: `${versionPolicies.value.length} 条版本策略 / ${products.value.length} 个产品`,
+  },
+  {
+    label: '请求签名隔离',
+    value: signingMode.value,
+    status: 'success',
+    detail: '服务端按 productCode + appVersion 精确匹配 secret',
+  },
+  {
+    label: '公共 API 健康',
+    value: percent(requestFailureRate.value),
+    status: requestFailureRate.value > 0.05 ? 'danger' : requestFailureRate.value > 0.01 ? 'warning' : 'success',
+    detail: `${monitoringMetrics.value.api.requests.total} 次请求 / 平均 ${monitoringMetrics.value.api.requests.averageLatencyMs} ms`,
+  },
+  {
+    label: '待处理队列',
+    value: String(openRisks.value + pendingUnbindRequests.value),
+    status: openRisks.value || pendingUnbindRequests.value ? 'warning' : 'success',
+    detail: `风险 ${openRisks.value} / 解绑 ${pendingUnbindRequests.value}`,
+  },
+]);
+const productVersionRows = computed(() => products.value.map((product) => {
+  const policy = versionPolicies.value.find((item) => item.productId === product.id);
+  const productLicenses = licenses.value.filter((license) => license.productId === product.id);
+  const productDevices = devices.value.filter((device) => device.license?.productId === product.id || productLicenses.some((license) => license.id === device.licenseId));
+  const appVersions = Array.from(new Set(productDevices.map((device) => device.appVersion).filter(Boolean))).sort(compareVersionDesc);
+  return {
+    id: product.id,
+    product,
+    policy,
+    activeLicenses: productLicenses.filter((license) => license.status === 'active').length,
+    activeDevices: productDevices.filter((device) => device.status === 'active').length,
+    observedVersions: appVersions.slice(0, 3).join(', ') || '-',
+    signingScope: policy ? `${product.productCode} / ${policy.latestVersion}` : `${product.productCode} / 未配置版本`,
+  };
+}));
+const consoleQueueRows = computed(() => [
+  { label: '待处理风险', value: openRisks.value, detail: `高危 ${riskSummary.value.high}` },
+  { label: '解绑审核', value: pendingUnbindRequests.value, detail: `${unbindRequests.value.length} 条总申请` },
+  { label: '活跃离线包', value: activeOfflinePackages.value, detail: `${offlinePackages.value.length} 个离线包` },
+  { label: '强制升级策略', value: forcedUpgradePolicies.value, detail: `${versionPolicies.value.length} 条版本策略` },
+]);
 
 function statusText(status?: string | boolean) {
   if (typeof status === 'boolean') return status ? '是' : '否';
@@ -264,6 +318,14 @@ function formatBytes(value: number | null) {
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function compareVersionDesc(left: string, right: string) {
+  return right.localeCompare(left, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function queueTagType(value: number) {
+  return value > 0 ? 'warning' : 'success';
 }
 
 function generateProductKey() {
@@ -758,8 +820,8 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <header class="header">
         <div>
           <p class="eyebrow">运营控制台</p>
-          <h1>授权与卡密管理后台</h1>
-          <p>统一管理授权码、卡密发放、设备绑定、版本策略和异常风险。</p>
+          <h1>授权运营控制台</h1>
+          <p>授权与卡密管理后台现在按产品、版本、密钥和风险队列组织运营视图。</p>
         </div>
         <div class="header-actions">
           <el-button circle :icon="Bell" title="消息中心" />
@@ -772,44 +834,125 @@ async function withMessage(message: string, action: () => Promise<void>) {
       </header>
 
       <section class="metric-grid">
-        <article class="metric-card primary"><span>有效授权码</span><strong>{{ activeLicenses }}</strong><small>可正常验证和续租</small></article>
-        <article class="metric-card"><span>待用/已发卡密</span><strong>{{ activeCardKeys }}</strong><small>渠道和批次发放库存</small></article>
-        <article class="metric-card"><span>在线绑定设备</span><strong>{{ onlineDevices }}</strong><small>当前正常设备数量</small></article>
-        <article class="metric-card danger"><span>待处理风险</span><strong>{{ openRisks }}</strong><small>高危 {{ riskSummary.high }} / 停用授权 {{ disabledLicenses }}</small></article>
+        <article class="metric-card primary"><span>活跃产品</span><strong>{{ activeProducts }}</strong><small>{{ products.length }} 个产品 / {{ versionPolicies.length }} 条版本策略</small></article>
+        <article class="metric-card"><span>有效授权码</span><strong>{{ activeLicenses }}</strong><small>停用或异常 {{ disabledLicenses }}</small></article>
+        <article class="metric-card"><span>在线绑定设备</span><strong>{{ onlineDevices }}</strong><small>{{ devices.length }} 台设备 / {{ activeCardKeys }} 个待用卡密</small></article>
+        <article class="metric-card danger"><span>待处理队列</span><strong>{{ openRisks + pendingUnbindRequests }}</strong><small>风险 {{ openRisks }} / 解绑 {{ pendingUnbindRequests }}</small></article>
       </section>
 
       <section class="console-panel console-home" v-loading="loading">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">控制台速览</p>
-            <h2>运营概览</h2>
-            <p>集中查看关键授权资产、渠道库存、设备绑定和风险处理压力。</p>
+            <p class="eyebrow">运行状态</p>
+            <h2>授权链路健康</h2>
+            <p>首屏聚焦产品版本策略、请求签名隔离、API 健康和待处理队列。</p>
           </div>
         </div>
-        <div class="overview-grid">
+        <div class="health-grid">
+          <article v-for="item in consoleHealthItems" :key="item.label" class="health-card">
+            <div>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+            <el-tag :type="item.status" effect="plain">{{ item.status === 'success' ? '正常' : item.status === 'warning' ? '关注' : '异常' }}</el-tag>
+            <small>{{ item.detail }}</small>
+          </article>
+        </div>
+      </section>
+
+      <section class="console-layout">
+        <section class="console-panel">
+          <div class="section-heading compact-heading">
+            <div>
+              <p class="eyebrow">产品与版本</p>
+              <h2>签名密钥匹配矩阵</h2>
+              <p>客户端必须使用表中产品 Key 和目标版本对应的版本级 secret。</p>
+            </div>
+          </div>
+          <el-table :data="productVersionRows" size="small">
+            <el-table-column label="产品" min-width="220">
+              <template #default="{ row }">
+                <strong>{{ row.product.name }}</strong>
+                <span class="table-subtext">{{ row.product.productCode }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="版本策略" min-width="170">
+              <template #default="{ row }">
+                <span>{{ row.policy ? `${row.policy.minSupportedVersion} -> ${row.policy.latestVersion}` : '未配置' }}</span>
+                <el-tag v-if="row.policy?.forceUpgrade" type="danger" size="small">强制升级</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="observedVersions" label="设备版本" min-width="140" />
+            <el-table-column label="签名匹配范围" min-width="260">
+              <template #default="{ row }"><code class="inline-code">{{ row.signingScope }}</code></template>
+            </el-table-column>
+            <el-table-column prop="activeLicenses" label="有效授权" width="100" />
+            <el-table-column prop="activeDevices" label="在线设备" width="100" />
+          </el-table>
+        </section>
+
+        <aside class="console-side">
+          <section class="console-panel">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">处理队列</p>
+                <h2>今日优先级</h2>
+              </div>
+            </div>
+            <div class="queue-list">
+              <article v-for="item in consoleQueueRows" :key="item.label">
+                <div>
+                  <strong>{{ item.label }}</strong>
+                  <span>{{ item.detail }}</span>
+                </div>
+                <el-tag :type="queueTagType(item.value)" effect="plain">{{ item.value }}</el-tag>
+              </article>
+            </div>
+          </section>
+
+          <section class="console-panel">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">API 监控</p>
+                <h2>公共接口健康</h2>
+              </div>
+            </div>
+            <div class="api-health">
+              <article><span>请求总数</span><strong>{{ monitoringMetrics.api.requests.total }}</strong></article>
+              <article><span>失败率</span><strong>{{ percent(monitoringMetrics.api.requests.failureRate) }}</strong></article>
+              <article><span>平均延迟</span><strong>{{ monitoringMetrics.api.requests.averageLatencyMs }} ms</strong></article>
+            </div>
+            <div class="error-list" v-if="topErrorCodes.length">
+              <div v-for="[code, count] in topErrorCodes" :key="code"><span>{{ code }}</span><strong>{{ count }}</strong></div>
+            </div>
+            <p v-else class="empty-note">暂无错误码记录</p>
+          </section>
+        </aside>
+      </section>
+
+      <section class="console-panel">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">客户端配置</p>
+            <h2>Win 客户端接入基线</h2>
+            <p>打包配置必须和服务端 `PUBLIC_API_SIGNING_SECRETS` 的产品与版本完全一致。</p>
+          </div>
+        </div>
+        <div class="config-baseline">
           <article>
-            <strong>{{ products.length }}</strong>
-            <span>授权产品</span>
+            <span>密钥策略</span>
+            <strong>PUBLIC_API_SIGNING_SECRETS</strong>
+            <small>不再使用全局 PUBLIC_API_SIGNING_SECRET 作为生产兜底</small>
           </article>
           <article>
-            <strong>{{ plans.length }}</strong>
-            <span>套餐配置</span>
+            <span>客户端字段</span>
+            <strong>requestSigningSecret</strong>
+            <small>对应当前 productCode + appVersion 的 secret</small>
           </article>
           <article>
-            <strong>{{ licenses.length }}</strong>
-            <span>授权码总量</span>
-          </article>
-          <article>
-            <strong>{{ cardKeys.length }}</strong>
-            <span>卡密总量</span>
-          </article>
-          <article>
-            <strong>{{ tenants.length }}</strong>
-            <span>租户</span>
-          </article>
-          <article>
-            <strong>{{ channels.length }}</strong>
-            <span>渠道</span>
+            <span>配置文件</span>
+            <strong>entitlement-client.config.json</strong>
+            <small>放入 Electron resources 目录或用 LICENSE_CLIENT_CONFIG_PATH 指定</small>
           </article>
         </div>
       </section>

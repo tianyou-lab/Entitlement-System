@@ -165,6 +165,33 @@ button, input, textarea { font: inherit; }
 .overview-grid article { min-height: 104px; display: grid; align-content: center; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
 .overview-grid strong { font-size: 30px; color: #0e1726; }
 .overview-grid span { color: var(--muted); font-weight: 800; }
+.health-grid { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; }
+.health-card { min-height: 132px; display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.health-card span { display: block; color: var(--muted); font-weight: 800; }
+.health-card strong { display: block; margin-top: 8px; color: #0e1726; font-size: 22px; line-height: 1.25; }
+.health-card small { grid-column: 1 / -1; color: var(--muted-2); line-height: 1.6; }
+.console-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 18px; }
+.console-side { display: grid; gap: 18px; align-content: start; }
+.compact-heading { margin-bottom: 14px; padding-bottom: 14px; }
+.compact-heading h2 { font-size: 20px; }
+.table-subtext { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.inline-code { display: inline-block; max-width: 100%; padding: 4px 7px; border-radius: 6px; background: #e8f1fb; color: #1557b0; font-size: 12px; overflow-wrap: anywhere; }
+.queue-list { display: grid; gap: 10px; }
+.queue-list article { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.queue-list strong { display: block; color: #0e1726; }
+.queue-list span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.api-health { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.api-health article { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.api-health span { display: block; color: var(--muted); font-size: 12px; font-weight: 800; }
+.api-health strong { display: block; margin-top: 8px; color: #0e1726; font-size: 18px; }
+.error-list { display: grid; gap: 8px; margin-top: 12px; }
+.error-list div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 8px; background: #fff7f7; color: var(--danger); }
+.empty-note { margin: 12px 0 0; color: var(--muted); }
+.config-baseline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.config-baseline article { min-height: 118px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.config-baseline span { display: block; color: var(--muted); font-weight: 800; }
+.config-baseline strong { display: block; margin: 10px 0 8px; color: #0e1726; font-size: 17px; overflow-wrap: anywhere; }
+.config-baseline small { color: var(--muted-2); line-height: 1.6; }
 .section-page { min-width: 0; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .toolbar strong { display: block; color: #0e1726; }
@@ -269,6 +296,24 @@ button, input, textarea { font: inherit; }
 .admin-shell.dark .section-heading { border-color: var(--line); }
 .admin-shell.dark .module-header { border-left-color: #2dd4bf; }
 .admin-shell.dark .overview-grid article { background: var(--surface-soft); border-color: var(--line); }
+.admin-shell.dark .health-card,
+.admin-shell.dark .queue-list article,
+.admin-shell.dark .api-health article,
+.admin-shell.dark .config-baseline article { background: var(--surface-soft); border-color: var(--line); }
+.admin-shell.dark .health-card strong,
+.admin-shell.dark .queue-list strong,
+.admin-shell.dark .api-health strong,
+.admin-shell.dark .config-baseline strong { color: #f8fafc; }
+.admin-shell.dark .table-subtext,
+.admin-shell.dark .health-card span,
+.admin-shell.dark .health-card small,
+.admin-shell.dark .queue-list span,
+.admin-shell.dark .api-health span,
+.admin-shell.dark .empty-note,
+.admin-shell.dark .config-baseline span,
+.admin-shell.dark .config-baseline small { color: var(--muted); }
+.admin-shell.dark .inline-code { background: #172438; color: #93c5fd; }
+.admin-shell.dark .error-list div { background: rgba(127, 29, 29, .2); }
 .admin-shell.dark .sdk-card,
 .admin-shell.dark .doc-panel { background: var(--surface-soft); border-color: var(--line); }
 .admin-shell.dark .sdk-card strong { color: #f8fafc; }
@@ -285,6 +330,9 @@ button, input, textarea { font: inherit; }
   .sidebar-nav-item.active { box-shadow: inset 0 -3px 0 #2dd4bf; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .console-layout { grid-template-columns: 1fr; }
+  .console-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sdk-grid, .code-grid { grid-template-columns: 1fr; }
   .form-grid, .card-key-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-key-product, .card-key-mini, .card-key-custom, .card-key-submit { grid-column: span 1; }
@@ -305,7 +353,7 @@ button, input, textarea { font: inherit; }
   .header, .module-header { align-items: flex-start; flex-direction: column; }
   .toolbar { align-items: flex-start; flex-direction: column; }
   .toolbar-actions { justify-content: flex-start; }
-  .metric-grid, .overview-grid, .form-grid, .card-key-form, .product-form-grid, .product-key-control { grid-template-columns: 1fr; }
+  .metric-grid, .overview-grid, .health-grid, .console-side, .api-health, .config-baseline, .form-grid, .card-key-form, .product-form-grid, .product-key-control { grid-template-columns: 1fr; }
   .card-key-product, .card-key-mini, .card-key-custom, .card-key-submit { grid-column: 1 / -1; }
   .form-actions { justify-content: flex-start; }
   .product-key-value { min-width: 0; white-space: normal; overflow-wrap: anywhere; }

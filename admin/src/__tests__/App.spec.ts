@@ -74,9 +74,14 @@ beforeEach(() => {
   api.listRiskEvents.mockResolvedValue([]);
   api.getRiskSummary.mockResolvedValue({ total: 0, open: 0, high: 0, resolved: 0 });
   api.getMonitoringMetrics.mockResolvedValue({
-    api: { totalRequests: 0, successRequests: 0, failedRequests: 0, successRate: 0, averageLatencyMs: 0, errorCodes: {} },
-    database: { status: 'ok', latencyMs: 0 },
-    generatedAt: new Date().toISOString(),
+    api: {
+      startedAt: new Date().toISOString(),
+      uptimeSeconds: 0,
+      requests: { total: 0, failures: 0, failureRate: 0, averageLatencyMs: 0, maxLatencyMs: 0 },
+      errorCodes: {},
+      routes: [],
+    },
+    postgres: { connections: null, databaseSizeBytes: null },
   });
   api.listDeviceUnbindRequests.mockResolvedValue([]);
   api.listProtectorAdapters.mockResolvedValue([]);
@@ -102,7 +107,7 @@ describe('App', () => {
     expect(api.listLicenses).toHaveBeenCalled();
     expect(wrapper.text()).toContain('授权与卡密管理后台');
     expect(wrapper.text()).toContain('产品管理');
-    expect(wrapper.text()).toContain('套餐配置');
-    expect(wrapper.text()).toContain('授权码');
+    expect(wrapper.text()).toContain('签名密钥匹配矩阵');
+    expect(wrapper.text()).toContain('PUBLIC_API_SIGNING_SECRETS');
   });
 });
