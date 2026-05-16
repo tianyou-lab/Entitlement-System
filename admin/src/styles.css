@@ -206,6 +206,7 @@ button, input, textarea { font: inherit; }
 .product-key-control .el-input__inner { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .form-actions { display: flex; justify-content: flex-end; }
 .product-key-value { display: inline-block; min-width: 36ch; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; color: #0f172a; }
+.product-column-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-actions { display: flex; align-items: center; gap: 8px; }
 .full { grid-column: 1 / -1; }
 .muted { color: var(--muted); }

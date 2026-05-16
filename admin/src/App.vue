@@ -1291,7 +1291,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无授权码，点击上方按钮生成" @selection-change="handleCardKeySelection">
           <el-table-column type="selection" width="44" fixed />
-          <el-table-column prop="cardKey" label="授权码" min-width="160">
+          <el-table-column prop="cardKey" label="授权码" min-width="120">
             <template #default="{ row }">
               <div class="key-cell">
                 <span class="key-text">{{ row.cardKey || '-' }}</span>
@@ -1299,7 +1299,11 @@ async function withMessage(message: string, action: () => Promise<void>) {
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="product.productCode" label="产品" width="195" />
+          <el-table-column label="产品" min-width="200">
+            <template #default="{ row }">
+              <span class="product-column-text">{{ row.product?.productCode || row.product?.name || row.productId }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="plan.name" label="类型" width="130" />
           <el-table-column label="状态" width="120" sortable>
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
