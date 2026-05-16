@@ -320,6 +320,71 @@ async function copyText(value?: string) {
   ElMessage.success('已复制到剪贴板');
 }
 
+function cardKeyExportRows(rows: CardKey[]) {
+  return rows.map((row) => ({
+    id: row.id,
+    cardKey: row.cardKey,
+    product: row.product?.productCode ?? row.product?.name ?? row.productId,
+    plan: row.plan?.planCode ?? row.plan?.name ?? row.planId,
+    channel: row.channel?.name ?? '',
+    batchCode: row.batchCode ?? '',
+    status: statusText(row.status),
+    expireAt: row.expireAt ?? '',
+    license: licenseLabel(row.license),
+  }));
+}
+
+function cardKeyPlainText(rows: CardKey[]) {
+  return rows.map((row) => row.cardKey).filter(Boolean).join('\n');
+}
+
+async function copyCardKeys(rows: CardKey[], emptyMessage: string) {
+  if (!rows.length) {
+    ElMessage.warning(emptyMessage);
+    return;
+  }
+  await copyText(cardKeyPlainText(rows));
+}
+
+function exportCardKeys(rows: CardKey[], emptyMessage: string, scope: 'all' | 'selected') {
+  if (!rows.length) {
+    ElMessage.warning(emptyMessage);
+    return;
+  }
+  const headers = ['ID', '卡密', '产品', '套餐', '渠道', '批次', '状态', '到期时间', '关联授权'];
+  const csvRows = cardKeyExportRows(rows).map((row) => [
+    row.id,
+    row.cardKey,
+    row.product,
+    row.plan,
+    row.channel,
+    row.batchCode,
+    row.status,
+    row.expireAt,
+    row.license,
+  ]);
+  downloadCsv(`card-keys-${scope}-${new Date().toISOString().slice(0, 10)}.csv`, [headers, ...csvRows]);
+  ElMessage.success(`已导出 ${rows.length} 个卡密`);
+}
+
+function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: string | number) {
+  const text = String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 function licenseLabel(license?: License | null) {
   if (!license) return '-';
   return license.licenseKey ?? `License #${license.id}`;
@@ -1071,7 +1136,13 @@ async function withMessage(message: string, action: () => Promise<void>) {
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
             <div><strong>生成卡密</strong><span class="muted">适合渠道批次发放，可留空自动生成卡密串</span></div>
-            <el-button type="danger" plain :disabled="!selectedCardKeys.length" @click="batchDisableCardKeys">批量禁用</el-button>
+            <div class="toolbar-actions">
+              <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制卡密')">复制全部</el-button>
+              <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的卡密')">复制选中</el-button>
+              <el-button :icon="Download" :disabled="!cardKeys.length" @click="exportCardKeys(cardKeys, '暂无可导出卡密', 'all')">导出全部</el-button>
+              <el-button :icon="Download" :disabled="!selectedCardKeys.length" @click="exportCardKeys(selectedCardKeys, '请先勾选要导出的卡密', 'selected')">导出选中</el-button>
+              <el-button type="danger" plain :disabled="!selectedCardKeys.length" @click="batchDisableCardKeys">批量禁用</el-button>
+            </div>
           </div>
           <el-form class="form-grid" label-position="top" @submit.prevent="submitCardKey">
             <el-form-item label="产品">
@@ -1097,15 +1168,19 @@ async function withMessage(message: string, action: () => Promise<void>) {
         </div>
         <el-table :data="cardKeys" class="data-table" size="small" stripe border empty-text="暂无卡密，点击上方按钮生成" @selection-change="handleCardKeySelection">
           <el-table-column type="selection" width="44" fixed />
-          <el-table-column prop="cardKey" label="卡密" min-width="240" show-overflow-tooltip>
+          <el-table-column prop="cardKey" label="卡密" min-width="320">
             <template #default="{ row }">
-              <el-button link type="primary" @click="copyText(row.cardKey)">复制</el-button>
-              <span class="key-text">{{ row.cardKey }}</span>
+              <div class="key-cell">
+                <span class="key-text">{{ row.cardKey || '-' }}</span>
+                <el-button link type="primary" @click="copyText(row.cardKey)">复制</el-button>
+              </div>
             </template>
           </el-table-column>
           <el-table-column prop="product.productCode" label="产品" width="130" />
           <el-table-column prop="plan.planCode" label="套餐" width="130" />
           <el-table-column prop="channel.name" label="渠道" width="140" />
+          <el-table-column prop="batchCode" label="批次" width="140" />
+          <el-table-column prop="expireAt" label="到期时间" min-width="190" sortable />
           <el-table-column label="状态" width="120" sortable>
             <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
           </el-table-column>

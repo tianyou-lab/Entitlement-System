@@ -169,6 +169,7 @@ button, input, textarea { font: inherit; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .toolbar strong { display: block; color: #0e1726; }
 .toolbar .muted { display: block; margin-top: 4px; font-size: 12px; }
+.toolbar-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 .log-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .table-card { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
 .sdk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -197,7 +198,13 @@ button, input, textarea { font: inherit; }
 .data-table, .el-table { margin-top: 18px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
 .el-table th.el-table__cell { background: #f2f6fb; color: #43546a; font-weight: 800; }
 .el-table .cell { line-height: 1.45; }
-.key-text { margin-left: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #0f172a; }
+.key-cell { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.key-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #0f172a;
+}
 
 .el-button { border-radius: 8px; font-weight: 700; }
 .el-input__wrapper,
@@ -276,6 +283,8 @@ button, input, textarea { font: inherit; }
   .sidebar-nav-item span { display: inline; }
   .workspace { padding: 16px; }
   .header, .module-header { align-items: flex-start; flex-direction: column; }
+  .toolbar { align-items: flex-start; flex-direction: column; }
+  .toolbar-actions { justify-content: flex-start; }
   .metric-grid, .overview-grid, .form-grid { grid-template-columns: 1fr; }
   .sdk-card { flex-direction: column; }
   .section-heading { padding-bottom: 14px; }
