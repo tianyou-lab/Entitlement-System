@@ -2,12 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell, Box, Connection, Cpu, DataAnalysis, Document, Download, Key, Link, Monitor, Refresh, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue';
-import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createPlan, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updatePlan, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
-import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreatePlanInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceBindingPolicy, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
+import { changePassword, clearToken, createAdmin, createCardKey, createChannel, createDeviceUnbindRequest, createLicense, createOfflinePackage, createProduct, createProtectorAdapter, createRiskEvent, createTenant, createVersionPolicy, deleteCardKey, deleteProduct, getMonitoringMetrics, getRiskSummary, getToken, listActivationLogs, listAdmins, listAuditLogs, listCardKeys, listChannels, listDeviceUnbindRequests, listDevices, listHeartbeatLogs, listLicenses, listOfflinePackages, listPlans, listProducts, listProtectorAdapters, listRiskEvents, listTenants, listVersionPolicies, login, reviewDeviceUnbindRequest, updateAdminRole, updateAdminStatus, updateCardKeyStatus, updateChannelStatus, updateDeviceStatus, updateLicenseStatus, updateOfflinePackageStatus, updateProduct, updateProtectorAdapterStatus, updateRiskEventStatus, updateVersionPolicy } from './api';
+import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdminInput, CreateCardKeyInput, CreateChannelInput, CreateDeviceUnbindRequestInput, CreateLicenseInput, CreateOfflinePackageInput, CreateProductInput, CreateProtectorAdapterInput, CreateRiskEventInput, CreateTenantInput, CreateVersionPolicyInput, Device, DeviceBindingPolicy, DeviceUnbindRequest, HeartbeatLog, License, MonitoringMetrics, OfflinePackage, Plan, Product, ProductRequestSigningSecret, ProtectorAdapter, RiskEvent, RiskSummary, Tenant, VersionPolicy } from './types';
 
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
-  { id: 'products', label: '应用管理', summary: '创建应用并配置授权套餐、设备绑定和在线并发策略', icon: Box },
+  { id: 'products', label: '应用管理', summary: '创建应用并查看客户端接入配置', icon: Box },
   { id: 'cardKeys', label: '授权管理', summary: '按产品和时长类型生成、复制、导出授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
@@ -75,8 +75,6 @@ const passwordForm = reactive({ oldPassword: '', newPassword: '' });
 const adminForm = reactive<CreateAdminInput>({ username: '', password: '', roleCode: 'viewer', tenantId: undefined });
 const productForm = reactive<CreateProductInput>({ productCode: generateProductKey(), name: '', description: '' });
 const productEditForm = reactive({ name: '', description: '' });
-const planForm = reactive<CreatePlanInput>({ productId: 0, planCode: '', name: '', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: { publish: true, maxWindowCount: 20, deviceBindingPolicy: 'deny_new' } });
-const planDeviceBindingPolicy = ref<DeviceBindingPolicy>('deny_new');
 const licenseForm = reactive<CreateLicenseInput>({ productId: 0, planId: 0, licenseKey: '', expireAt: '', maxDevicesOverride: undefined, featureFlagsOverride: undefined, notes: '' });
 const versionPolicyForm = reactive<CreateVersionPolicyInput>({ productId: 0, minSupportedVersion: '1.0.0', latestVersion: '1.0.0', forceUpgrade: false, downloadUrl: '', notice: '' });
 const tenantForm = reactive<CreateTenantInput>({ tenantCode: '', name: '', contactEmail: '' });
@@ -85,6 +83,9 @@ const cardKeyForm = reactive<CreateCardKeyInput>({ tenantId: undefined, productI
 const cardKeyDurationType = ref<typeof cardKeyDurationOptions[number]['value']>('day');
 const cardKeyQuantity = ref(1);
 const cardKeyDurationHours = ref(1);
+const cardKeyMaxDevices = ref(1);
+const cardKeyMaxConcurrency = ref(1);
+const cardKeyDeviceBindingPolicy = ref<DeviceBindingPolicy>('deny_new');
 const offlinePackageForm = reactive<CreateOfflinePackageInput>({ tenantId: undefined, licenseId: 0, deviceId: undefined, packageCode: '', expireAt: nextYearIso() });
 const riskEventForm = reactive<CreateRiskEventInput>({ tenantId: undefined, licenseId: undefined, deviceId: undefined, eventType: 'manual_review', severity: 'medium', summary: '' });
 const unbindRequestForm = reactive<CreateDeviceUnbindRequestInput>({ licenseId: 0, deviceId: 0, reason: '' });
@@ -260,7 +261,6 @@ async function refreshAll() {
     monitoringMetrics.value = nextMonitoringMetrics;
     unbindRequests.value = nextUnbindRequests;
     protectorAdapters.value = nextProtectorAdapters;
-    if (!planForm.productId && nextProducts[0]) planForm.productId = nextProducts[0].id;
     if (!licenseForm.productId && nextProducts[0]) licenseForm.productId = nextProducts[0].id;
     if (!licenseForm.planId && nextPlans[0]) licenseForm.planId = nextPlans[0].id;
     if (!versionPolicyForm.productId && nextProducts[0]) versionPolicyForm.productId = nextProducts[0].id;
@@ -406,41 +406,6 @@ async function removeProduct(product: Product) {
     await deleteProduct(product.id);
     await refreshAll();
   });
-}
-
-async function submitPlan() {
-  await withMessage('套餐已创建', async () => {
-    await createPlan({ ...planForm, featureFlags: { ...parseJson(planFlagsText.value), deviceBindingPolicy: planDeviceBindingPolicy.value } });
-    planForm.planCode = '';
-    planForm.name = '';
-    await refreshAll();
-  });
-}
-
-async function updatePlanDevicePolicy(plan: Plan, policy: DeviceBindingPolicy) {
-  await withMessage('设备绑定策略已更新', async () => {
-    await updatePlan(plan.id, { featureFlags: { ...(plan.featureFlags ?? {}), deviceBindingPolicy: policy } });
-    await refreshAll();
-  });
-}
-
-function updatePlanDevicePolicyFromSelect(plan: Plan, value: string | number | boolean | Record<string, unknown>) {
-  void updatePlanDevicePolicy(plan, value === 'kick_oldest' ? 'kick_oldest' : 'deny_new');
-}
-
-async function updatePlanDeviceLimits(plan: Plan) {
-  await withMessage('设备限制已更新', async () => {
-    await updatePlan(plan.id, {
-      maxDevices: plan.maxDevices,
-      maxConcurrency: plan.maxConcurrency,
-      featureFlags: { ...(plan.featureFlags ?? {}), deviceBindingPolicy: planDeviceBindingPolicyFor(plan) },
-    });
-    await refreshAll();
-  });
-}
-
-function planDeviceBindingPolicyFor(plan: Plan): DeviceBindingPolicy {
-  return plan.featureFlags?.deviceBindingPolicy === 'kick_oldest' ? 'kick_oldest' : 'deny_new';
 }
 
 async function submitLicense() {
@@ -656,6 +621,9 @@ async function submitCardKey() {
       productId: cardKeyForm.productId,
       durationType: cardKeyDurationType.value,
       durationHours: cardKeyDurationType.value === 'hour' ? cardKeyDurationHours.value : undefined,
+      maxDevices: cardKeyMaxDevices.value,
+      maxConcurrency: cardKeyMaxConcurrency.value,
+      deviceBindingPolicy: cardKeyDeviceBindingPolicy.value,
       cardKey: cardKeyForm.cardKey || undefined,
     })));
     cardKeyForm.cardKey = '';
@@ -765,7 +733,6 @@ function logout() {
   passwordChangeRequired.value = false;
 }
 
-const planFlagsText = ref(JSON.stringify(planForm.featureFlags, null, 2));
 const licenseFlagsText = ref('');
 
 function parseJson(value: string) {
@@ -1139,76 +1106,6 @@ async function withMessage(message: string, action: () => Promise<void>) {
             <el-button type="primary" @click="submitProductEdit">保存</el-button>
           </template>
         </el-dialog>
-        <div class="table-card">
-          <div class="toolbar"><strong>创建授权套餐</strong><span class="muted">绑定设备数、在线并发数和顶号策略都在这里配置</span></div>
-          <el-form class="form-grid" label-position="top" @submit.prevent="submitPlan">
-            <el-form-item label="所属应用">
-              <el-select v-model="planForm.productId" style="width: 100%">
-                <el-option v-for="product in products" :key="product.id" :label="`${product.name} (${product.productCode})`" :value="product.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="套餐编码">
-              <el-input v-model="planForm.planCode" placeholder="basic" />
-            </el-form-item>
-            <el-form-item label="套餐名称">
-              <el-input v-model="planForm.name" placeholder="Basic" />
-            </el-form-item>
-            <el-form-item label="有效天数">
-              <el-input-number v-model="planForm.durationDays" :min="1" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="最大设备数">
-              <el-input-number v-model="planForm.maxDevices" :min="1" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="最大并发数">
-              <el-input-number v-model="planForm.maxConcurrency" :min="1" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="多设备登录策略">
-              <el-select v-model="planDeviceBindingPolicy" style="width: 100%">
-                <el-option v-for="option in deviceBindingPolicyOptions" :key="option.value" :label="option.label" :value="option.value">
-                  <span>{{ option.label }}</span>
-                  <small class="select-option-note">{{ option.description }}</small>
-                </el-option>
-              </el-select>
-            </el-form-item>
-            <el-form-item label="宽限小时">
-              <el-input-number v-model="planForm.graceHours" :min="0" style="width: 100%" />
-            </el-form-item>
-            <el-form-item class="full" label="功能开关 JSON">
-              <el-input v-model="planFlagsText" type="textarea" :rows="4" />
-            </el-form-item>
-            <el-button type="primary" native-type="submit">创建套餐</el-button>
-          </el-form>
-        </div>
-        <div class="toolbar section-toolbar">
-          <div><strong>管理授权套餐</strong><span class="muted">直接调整每个应用套餐的设备绑定、在线并发和多设备策略</span></div>
-        </div>
-        <el-table :data="plans" style="margin-top: 18px">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="planCode" label="套餐编码" />
-          <el-table-column prop="name" label="名称" />
-          <el-table-column prop="product.productCode" label="产品" />
-          <el-table-column label="最大绑定设备" width="160">
-            <template #default="{ row }">
-              <el-input-number v-model="row.maxDevices" :min="1" size="small" style="width: 126px" @change="updatePlanDeviceLimits(row)" />
-            </template>
-          </el-table-column>
-          <el-table-column label="最大并发" width="150">
-            <template #default="{ row }">
-              <el-input-number v-model="row.maxConcurrency" :min="1" size="small" style="width: 116px" @change="updatePlanDeviceLimits(row)" />
-            </template>
-          </el-table-column>
-          <el-table-column label="多设备策略" min-width="220">
-            <template #default="{ row }">
-              <el-select :model-value="planDeviceBindingPolicyFor(row)" size="small" @change="updatePlanDevicePolicyFromSelect(row, $event)">
-                <el-option v-for="option in deviceBindingPolicyOptions" :key="option.value" :label="option.label" :value="option.value" />
-              </el-select>
-              <span class="table-subtext">{{ planDeviceBindingPolicyFor(row) === 'kick_oldest' ? '新设备会顶掉最久未活跃设备' : '设备满额时拒绝新设备' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
-          </el-table-column>
-        </el-table>
       </section>
 
       <section v-if="activeSection === 'licenses'" class="section-page">
@@ -1529,7 +1426,7 @@ async function withMessage(message: string, action: () => Promise<void>) {
       <section v-if="activeSection === 'cardKeys'" class="section-page">
         <div class="table-card" style="margin-top: 18px">
           <div class="toolbar">
-            <div><strong>生成授权码</strong><span class="muted">自动生成类型前缀授权码，例如月卡 YK + 32 位大写十六进制</span></div>
+            <div><strong>生成授权码</strong><span class="muted">按卡密直接控制时长、设备数、在线并发和多设备策略</span></div>
             <div class="toolbar-actions">
               <el-button :disabled="!cardKeys.length" @click="copyCardKeys(cardKeys, '暂无可复制授权码')">复制全部</el-button>
               <el-button :disabled="!selectedCardKeys.length" @click="copyCardKeys(selectedCardKeys, '请先勾选要复制的授权码')">复制选中</el-button>
@@ -1551,6 +1448,20 @@ async function withMessage(message: string, action: () => Promise<void>) {
             </el-form-item>
             <el-form-item v-if="cardKeyDurationType === 'hour'" class="card-key-mini" label="小时数">
               <el-input-number v-model="cardKeyDurationHours" :min="1" :max="720" style="width: 100%" />
+            </el-form-item>
+            <el-form-item class="card-key-mini" label="最大设备数">
+              <el-input-number v-model="cardKeyMaxDevices" :min="1" style="width: 100%" />
+            </el-form-item>
+            <el-form-item class="card-key-mini" label="最大并发数">
+              <el-input-number v-model="cardKeyMaxConcurrency" :min="1" style="width: 100%" />
+            </el-form-item>
+            <el-form-item class="card-key-policy" label="多设备登录策略">
+              <el-select v-model="cardKeyDeviceBindingPolicy" style="width: 100%">
+                <el-option v-for="option in deviceBindingPolicyOptions" :key="option.value" :label="option.label" :value="option.value">
+                  <span>{{ option.label }}</span>
+                  <small class="select-option-note">{{ option.description }}</small>
+                </el-option>
+              </el-select>
             </el-form-item>
             <el-form-item class="card-key-custom" label="自定义授权码（留空自动生成）"><el-input v-model="cardKeyForm.cardKey" placeholder="例如 YK8676F971BDE04A99BC8CEDFC06920DE9" /></el-form-item>
             <el-form-item class="card-key-mini" label="数量"><el-input-number v-model="cardKeyQuantity" :min="1" :max="500" style="width: 100%" /></el-form-item>

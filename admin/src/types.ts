@@ -319,6 +319,9 @@ export interface CreateCardKeyInput {
   planId?: number;
   durationType?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
   durationHours?: number;
+  maxDevices?: number;
+  maxConcurrency?: number;
+  deviceBindingPolicy?: DeviceBindingPolicy;
   channelId?: number;
   cardKey?: string;
   batchCode?: string;

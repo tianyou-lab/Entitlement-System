@@ -83,7 +83,10 @@ export class P2AdminController {
   @Post('card-keys')
   async createCardKey(@Body() dto: CreateCardKeyDto) {
     const durationType = dto.durationType ?? 'day';
-    const planId = dto.planId ?? (await this.ensureDefaultCardKeyPlan(dto.productId, durationType, dto.durationHours)).id;
+    const maxDevices = Math.max(1, dto.maxDevices ?? 1);
+    const maxConcurrency = Math.max(1, dto.maxConcurrency ?? 1);
+    const deviceBindingPolicy = dto.deviceBindingPolicy === 'kick_oldest' ? 'kick_oldest' : 'deny_new';
+    const planId = dto.planId ?? (await this.ensureDefaultCardKeyPlan(dto.productId, durationType, dto.durationHours, maxDevices, maxConcurrency, deviceBindingPolicy)).id;
     const cardKey = await this.prisma.cardKey.create({
       data: {
         tenantId: dto.tenantId,
@@ -265,20 +268,22 @@ export class P2AdminController {
     return `${cardKeyPrefixes[durationType]}${randomBytes(16).toString('hex').toUpperCase()}`;
   }
 
-  private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType, durationHours?: number) {
+  private async ensureDefaultCardKeyPlan(productId: number, durationType: CardKeyDurationType, durationHours?: number, maxDevices = 1, maxConcurrency = 1, deviceBindingPolicy: 'deny_new' | 'kick_oldest' = 'deny_new') {
+    const policyCode = deviceBindingPolicy === 'kick_oldest' ? 'kick' : 'deny';
+    const deviceSuffix = `d${maxDevices}_c${maxConcurrency}_${policyCode}`;
     if (durationType === 'hour') {
       const hours = Math.max(1, durationHours ?? 1);
       return this.prisma.plan.upsert({
-        where: { productId_planCode: { productId, planCode: `default_hour_${hours}` } },
+        where: { productId_planCode: { productId, planCode: `card_hour_${hours}_${deviceSuffix}` } },
         create: {
           productId,
-          planCode: `default_hour_${hours}`,
-          name: `${hours}小时卡`,
+          planCode: `card_hour_${hours}_${deviceSuffix}`,
+          name: `${hours}小时卡 / ${maxDevices}设备 / ${maxConcurrency}并发`,
           durationDays: Math.max(1, Math.ceil(hours / 24)),
-          maxDevices: 1,
-          maxConcurrency: 1,
+          maxDevices,
+          maxConcurrency,
           graceHours: 24,
-          featureFlags: { durationUnit: 'hour', durationHours: hours, durationSeconds: hours * 60 * 60 } as Prisma.InputJsonValue,
+          featureFlags: { durationUnit: 'hour', durationHours: hours, durationSeconds: hours * 60 * 60, deviceBindingPolicy } as Prisma.InputJsonValue,
         },
         update: {},
       });
@@ -293,16 +298,16 @@ export class P2AdminController {
     };
     const plan = config[durationType];
     return this.prisma.plan.upsert({
-      where: { productId_planCode: { productId, planCode: plan.code } },
+      where: { productId_planCode: { productId, planCode: `card_${durationType}_${deviceSuffix}` } },
       create: {
         productId,
-        planCode: plan.code,
-        name: plan.name,
+        planCode: `card_${durationType}_${deviceSuffix}`,
+        name: `${plan.name} / ${maxDevices}设备 / ${maxConcurrency}并发`,
         durationDays: plan.days,
-        maxDevices: 1,
-        maxConcurrency: 1,
+        maxDevices,
+        maxConcurrency,
         graceHours: 24,
-        featureFlags: { ...(plan.flags ?? {}), durationSeconds: plan.seconds } as Prisma.InputJsonValue,
+        featureFlags: { ...(plan.flags ?? {}), durationSeconds: plan.seconds, deviceBindingPolicy } as Prisma.InputJsonValue,
       },
       update: {},
     });

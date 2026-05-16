@@ -75,6 +75,22 @@ export class CreateCardKeyDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
+  maxDevices?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxConcurrency?: number;
+
+  @IsOptional()
+  @IsIn(['deny_new', 'kick_oldest'])
+  deviceBindingPolicy?: 'deny_new' | 'kick_oldest';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   channelId?: number;
 
   @IsOptional()
