@@ -8,6 +8,7 @@ import type { ActivationLog, AdminAccount, AuditLog, CardKey, Channel, CreateAdm
 const navItems = [
   { id: 'console', label: '运营控制台', summary: '查看授权、卡密、设备和风险的整体运营态势', icon: DataAnalysis },
   { id: 'products', label: '产品管理', summary: '创建产品并自动生成防重复产品 Key', icon: Box },
+  { id: 'plans', label: '套餐配置', summary: '设置绑定设备数、在线并发数和多设备登录策略', icon: Setting },
   { id: 'cardKeys', label: '授权管理', summary: '按产品和时长类型生成、复制、导出授权码', icon: Key },
   { id: 'devices', label: '设备绑定', summary: '查看绑定设备并处理启用、移除和封禁', icon: Monitor },
   { id: 'versions', label: '版本策略', summary: '维护最低版本、最新版本和强制升级策略', icon: TrendCharts },
