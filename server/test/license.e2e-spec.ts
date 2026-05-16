@@ -241,6 +241,20 @@ function createPrismaStub() {
         if (!lease) return Promise.resolve(null);
         return Promise.resolve({ ...lease, device: devices.find((device) => device.id === lease.deviceId), license });
       }),
+      findMany: jest.fn(({ where, include, orderBy }) => {
+        let matched = leases.filter((item) => {
+          if (where.licenseId !== undefined && item.licenseId !== where.licenseId) return false;
+          if (where.status !== undefined && item.status !== where.status) return false;
+          if (where.expireAt?.gt && item.expireAt.getTime() <= where.expireAt.gt.getTime()) return false;
+          const device = devices.find((candidate) => candidate.id === item.deviceId);
+          if (where.device?.status && device?.status !== where.device.status) return false;
+          return true;
+        });
+        if (orderBy?.expireAt === 'asc') {
+          matched = [...matched].sort((a, b) => a.expireAt.getTime() - b.expireAt.getTime());
+        }
+        return Promise.resolve(matched.map((item) => (include?.device ? { ...item, device: devices.find((device) => device.id === item.deviceId) } : item)));
+      }),
       update: jest.fn(({ where, data }) => {
         const lease = leases.find((item) => item.id === where.id);
         Object.assign(lease, data, { updatedAt: new Date() });
