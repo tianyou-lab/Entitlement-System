@@ -443,10 +443,6 @@ function planDeviceBindingPolicyFor(plan: Plan): DeviceBindingPolicy {
   return plan.featureFlags?.deviceBindingPolicy === 'kick_oldest' ? 'kick_oldest' : 'deny_new';
 }
 
-function deviceBindingPolicyText(policy: DeviceBindingPolicy) {
-  return deviceBindingPolicyOptions.find((item) => item.value === policy)?.label ?? policy;
-}
-
 async function submitLicense() {
   await withMessage('授权码已创建', async () => {
     const created = await createLicense({
