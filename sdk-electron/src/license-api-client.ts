@@ -7,6 +7,7 @@ export class LicenseApiClient {
   constructor(
     private readonly apiBaseUrl: string,
     private readonly productCode: string,
+    private readonly appVersion: string,
     fetchImpl?: typeof fetch,
     private readonly requestSigningSecret?: string,
   ) {
@@ -26,11 +27,11 @@ export class LicenseApiClient {
   }
 
   deactivate(licenseKey: string, deviceCode: string) {
-    return this.post<null>('/api/v1/license/deactivate', { productCode: this.productCode, licenseKey, deviceCode });
+    return this.post<null>('/api/v1/license/deactivate', { productCode: this.productCode, licenseKey, deviceCode, appVersion: this.appVersion });
   }
 
   async versionPolicy() {
-    const path = `/api/v1/version/policy?productCode=${encodeURIComponent(this.productCode)}`;
+    const path = `/api/v1/version/policy?productCode=${encodeURIComponent(this.productCode)}&appVersion=${encodeURIComponent(this.appVersion)}`;
     return this.request(new URL(path, this.apiBaseUrl).toString(), { method: 'GET' }, path, {});
   }
 

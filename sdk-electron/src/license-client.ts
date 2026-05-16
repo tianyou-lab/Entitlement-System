@@ -15,7 +15,7 @@ export class LicenseClient {
   private state: LicenseState = { status: 'inactive', featureFlags: {} };
 
   constructor(private readonly config: LicenseSdkConfig) {
-    this.api = new LicenseApiClient(config.apiBaseUrl, config.productCode, config.fetchImpl, config.requestSigningSecret);
+    this.api = new LicenseApiClient(config.apiBaseUrl, config.productCode, config.appVersion, config.fetchImpl, config.requestSigningSecret);
     this.store = new LicenseStore(config.productCode, config.storagePath);
     this.verifier = new LeaseVerifier(config.graceHours ?? 24);
     this.heartbeat = new HeartbeatScheduler(

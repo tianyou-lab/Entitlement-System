@@ -81,4 +81,8 @@ export class DeactivateDto {
   @IsString()
   @IsNotEmpty()
   deviceCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  appVersion: string;
 }

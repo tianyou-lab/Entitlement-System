@@ -19,13 +19,15 @@ function sign(secret: string, method: string, path: string, timestamp: string, n
 
 describe('RequestSignatureGuard', () => {
   const secret = 'test-public-api-signing-secret-32chars';
+  const productCode = 'demo';
+  const appVersion = '1.0.50';
 
   beforeEach(() => {
-    process.env.PUBLIC_API_SIGNING_SECRET = secret;
+    process.env.PUBLIC_API_SIGNING_SECRETS = JSON.stringify([{ productCode, appVersion, secret }]);
   });
 
   afterEach(() => {
-    delete process.env.PUBLIC_API_SIGNING_SECRET;
+    delete process.env.PUBLIC_API_SIGNING_SECRETS;
     delete process.env.NODE_ENV;
   });
 
@@ -34,7 +36,7 @@ describe('RequestSignatureGuard', () => {
     const guard = new RequestSignatureGuard(nonceReplay);
     const timestamp = String(Date.now());
     const nonce = 'nonce-1';
-    const body = { productCode: 'demo' };
+    const body = { productCode, appVersion };
     const request = {
       method: 'POST',
       originalUrl: '/api/v1/license/verify',
@@ -57,7 +59,7 @@ describe('RequestSignatureGuard', () => {
     const guard = new RequestSignatureGuard(nonceReplay);
     const timestamp = String(Date.now());
     const nonce = 'nonce-2';
-    const body = { productCode: 'demo' };
+    const body = { productCode, appVersion };
     const request = {
       method: 'POST',
       originalUrl: '/api/v1/license/verify',
@@ -70,6 +72,25 @@ describe('RequestSignatureGuard', () => {
     };
 
     expect(guard.canActivate(contextFor(request))).toBe(true);
+    expect(() => guard.canActivate(contextFor(request))).toThrow(expect.objectContaining({ code: ErrorCode.UNAUTHORIZED }));
+  });
+
+  it('requires exact product and app version match', () => {
+    const guard = new RequestSignatureGuard(new NonceReplayService());
+    const timestamp = String(Date.now());
+    const nonce = 'nonce-3';
+    const body = { productCode };
+    const request = {
+      method: 'POST',
+      originalUrl: '/api/v1/license/verify',
+      body,
+      headers: {
+        'x-entitlement-timestamp': timestamp,
+        'x-entitlement-nonce': nonce,
+        'x-entitlement-signature': sign(secret, 'POST', '/api/v1/license/verify', timestamp, nonce, body),
+      },
+    };
+
     expect(() => guard.canActivate(contextFor(request))).toThrow(expect.objectContaining({ code: ErrorCode.UNAUTHORIZED }));
   });
 });

@@ -80,29 +80,24 @@ interface PublicApiSigningSecret {
 }
 
 function readPublicApiSigningSecret(request: Request) {
-  const rotatedSecret = readRotatedPublicApiSigningSecret(request);
-  if (rotatedSecret) return rotatedSecret;
-
-  const secret = process.env.PUBLIC_API_SIGNING_SECRET;
-  if (!secret && process.env.NODE_ENV !== 'production') return undefined;
-  if (!secret || secret.length < 32) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, 'PUBLIC_API_SIGNING_SECRET must be at least 32 characters', HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-  return secret;
-}
-
-function readRotatedPublicApiSigningSecret(request: Request) {
   const configured = process.env.PUBLIC_API_SIGNING_SECRETS;
-  if (!configured) return undefined;
+  if (!configured && process.env.NODE_ENV !== 'production') return undefined;
+  if (!configured) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, 'PUBLIC_API_SIGNING_SECRETS must be configured', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
 
   const secrets = parseSigningSecrets(configured);
   const keyId = header(request, 'x-entitlement-key-id');
-  const productCode = request.method.toUpperCase() === 'GET' ? String(request.query?.productCode ?? '') : readBodyString(request.body, 'productCode');
-  const appVersion = readBodyString(request.body, 'appVersion') || readBodyString(readBodyObject(request.body, 'device'), 'appVersion');
+  const productCode = request.method.toUpperCase() === 'GET'
+    ? String(request.query?.productCode ?? '') || header(request, 'x-entitlement-product-code') || ''
+    : readBodyString(request.body, 'productCode') || header(request, 'x-entitlement-product-code') || '';
+  const appVersion = request.method.toUpperCase() === 'GET'
+    ? String(request.query?.appVersion ?? '') || header(request, 'x-entitlement-app-version') || ''
+    : readBodyString(request.body, 'appVersion') || readBodyString(readBodyObject(request.body, 'device'), 'appVersion') || header(request, 'x-entitlement-app-version') || '';
   const matched = secrets.find((item) =>
     (!keyId || item.keyId === keyId) &&
-    (!item.productCode || !productCode || item.productCode === productCode) &&
-    (!item.appVersion || !appVersion || item.appVersion === appVersion),
+    item.productCode === productCode &&
+    item.appVersion === appVersion,
   );
 
   if (!matched?.secret || matched.secret.length < 32) {

@@ -45,7 +45,7 @@ export DATABASE_URL=postgresql://entitlement:entitlement@127.0.0.1:5432/entitlem
 export JWT_SECRET=dev-jwt-secret
 export LEASE_SECRET=dev-lease-secret
 export LICENSE_KEY_HASH_SECRET=dev-license-key-hash-secret-change-in-production
-export PUBLIC_API_SIGNING_SECRET=dev-public-api-signing-secret
+export PUBLIC_API_SIGNING_SECRETS='[{"productCode":"demo_app","appVersion":"1.0.0","secret":"dev-public-api-signing-secret-32-chars"}]'
 export LEASE_TTL_MINUTES=120
 ```
 
@@ -96,7 +96,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec server
 
 生产环境使用 Prisma migration，迁移文件位于 `server/prisma/migrations/`。不要在生产环境直接使用 `db push`。
 
-生产环境必须使用高强度随机 `POSTGRES_PASSWORD`、`ADMIN_PASSWORD`、`JWT_SECRET`、`LEASE_SECRET`、`LICENSE_KEY_HASH_SECRET` 和 `PUBLIC_API_SIGNING_SECRET`。离线授权必须配置 Ed25519 `OFFLINE_LICENSE_PRIVATE_KEY` / `OFFLINE_LICENSE_PUBLIC_KEY`，请求签名密钥可通过 `PUBLIC_API_SIGNING_SECRETS` 按产品和版本轮换。
+生产环境必须使用高强度随机 `POSTGRES_PASSWORD`、`ADMIN_PASSWORD`、`JWT_SECRET`、`LEASE_SECRET`、`LICENSE_KEY_HASH_SECRET`。离线授权必须配置 Ed25519 `OFFLINE_LICENSE_PRIVATE_KEY` / `OFFLINE_LICENSE_PUBLIC_KEY`，请求签名密钥必须通过 `PUBLIC_API_SIGNING_SECRETS` 按产品和版本配置。
 
 常用生产辅助脚本：
 
@@ -191,4 +191,4 @@ make -C sdk-cpp clean all
 - 不要提交 `.env.production`、数据库备份、管理员凭据或生产密钥。
 - 生产环境必须开启 HTTPS。
 - 首次部署后必须修改默认管理员密码。
-- 如启用 `PUBLIC_API_SIGNING_SECRET`，所有客户端请求必须按约定签名。
+- 如启用 `PUBLIC_API_SIGNING_SECRETS`，所有客户端请求必须按约定签名，且 `productCode` / `appVersion` 必须精确匹配对应 secret。

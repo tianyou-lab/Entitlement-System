@@ -278,8 +278,13 @@ function createPrismaStub() {
 describe('License API (e2e)', () => {
   let app: INestApplication;
   let store: ReturnType<typeof createPrismaStub>;
+  let previousSigningSecrets: string | undefined;
 
   beforeEach(async () => {
+    previousSigningSecrets = process.env.PUBLIC_API_SIGNING_SECRETS;
+    process.env.PUBLIC_API_SIGNING_SECRETS = JSON.stringify([
+      { productCode: 'demo_app', appVersion: '1.0.0', secret: 'ci-public-api-signing-secret-32-characters' },
+    ]);
     store = createPrismaStub();
     const moduleRef = await Test.createTestingModule({
       controllers: [LicenseController, VersionController, P2AdminController, PublicOfflinePackageController, PublicDeviceUnbindController],
@@ -312,17 +317,21 @@ describe('License API (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    if (previousSigningSecrets === undefined) delete process.env.PUBLIC_API_SIGNING_SECRETS;
+    else process.env.PUBLIC_API_SIGNING_SECRETS = previousSigningSecrets;
   });
 
   function signedPost(path: string, body: Record<string, unknown>) {
     const timestamp = Date.now().toString();
     const nonce = `${timestamp}-${Math.random()}`;
-    const secret = process.env.PUBLIC_API_SIGNING_SECRET ?? 'ci-public-api-signing-secret';
+    const secret = 'ci-public-api-signing-secret-32-characters';
     const signature = createHmac('sha256', secret).update(['POST', path, timestamp, nonce, stableStringify(body)].join('\n')).digest('base64url');
     return request(app.getHttpServer())
       .post(path)
       .set('x-entitlement-timestamp', timestamp)
       .set('x-entitlement-nonce', nonce)
+      .set('x-entitlement-product-code', 'demo_app')
+      .set('x-entitlement-app-version', '1.0.0')
       .set('x-entitlement-signature', signature)
       .send(body);
   }
@@ -330,12 +339,14 @@ describe('License API (e2e)', () => {
   function signedGet(path: string) {
     const timestamp = Date.now().toString();
     const nonce = `${timestamp}-${Math.random()}`;
-    const secret = process.env.PUBLIC_API_SIGNING_SECRET ?? 'ci-public-api-signing-secret';
+    const secret = 'ci-public-api-signing-secret-32-characters';
     const signature = createHmac('sha256', secret).update(['GET', path, timestamp, nonce, stableStringify({})].join('\n')).digest('base64url');
     return request(app.getHttpServer())
       .get(path)
       .set('x-entitlement-timestamp', timestamp)
       .set('x-entitlement-nonce', nonce)
+      .set('x-entitlement-product-code', 'demo_app')
+      .set('x-entitlement-app-version', '1.0.0')
       .set('x-entitlement-signature', signature);
   }
 
@@ -354,12 +365,12 @@ describe('License API (e2e)', () => {
         expect(body).toMatchObject({ code: ErrorCode.OK, message: 'valid', data: { licenseStatus: LicenseStatus.active } });
       });
 
-    const heartbeat = await signedPost('/api/v1/license/heartbeat', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.1' })
+    const heartbeat = await signedPost('/api/v1/license/heartbeat', { productCode: 'demo_app', leaseToken, deviceCode: 'dev-1', appVersion: '1.0.0' })
       .expect(HttpStatus.CREATED);
     expect(heartbeat.body).toMatchObject({ code: ErrorCode.OK, message: 'refreshed' });
     expect(heartbeat.body.data.leaseToken).not.toEqual(leaseToken);
 
-    await signedPost('/api/v1/license/deactivate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', deviceCode: 'dev-1' })
+    await signedPost('/api/v1/license/deactivate', { productCode: 'demo_app', licenseKey: 'DEMO-AAAA-BBBB-CCCC', deviceCode: 'dev-1', appVersion: '1.0.0' })
       .expect(HttpStatus.CREATED)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: ErrorCode.OK, message: 'device removed', data: null });
@@ -425,7 +436,7 @@ describe('License API (e2e)', () => {
   });
 
   it('returns version policy for a product', async () => {
-    await signedGet('/api/v1/version/policy?productCode=demo_app')
+    await signedGet('/api/v1/version/policy?productCode=demo_app&appVersion=1.0.0')
       .expect(HttpStatus.OK)
       .expect(({ body }) => {
         expect(body).toMatchObject({

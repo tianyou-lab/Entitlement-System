@@ -14,7 +14,7 @@ jobs:
       JWT_SECRET: ci-jwt-secret-change-me-32-characters
       LEASE_SECRET: ci-lease-secret-change-me-32-characters
       LICENSE_KEY_HASH_SECRET: ci-license-key-hash-secret-32-characters
-      PUBLIC_API_SIGNING_SECRET: ci-public-api-signing-secret-32-characters
+      PUBLIC_API_SIGNING_SECRETS: '[{"productCode":"demo_app","appVersion":"1.0.0","secret":"ci-public-api-signing-secret-32-characters"}]'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
