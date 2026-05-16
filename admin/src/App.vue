@@ -329,6 +329,13 @@ function formatBytes(value: number | null) {
   return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { hour12: false });
+}
+
 function compareVersionDesc(left: string, right: string) {
   return right.localeCompare(left, undefined, { numeric: true, sensitivity: 'base' });
 }
@@ -1168,23 +1175,37 @@ async function withMessage(message: string, action: () => Promise<void>) {
       </section>
 
       <section v-if="activeSection === 'devices'" class="section-page">
-        <el-table :data="devices">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="deviceCode" label="设备码" min-width="180" />
-          <el-table-column prop="deviceName" label="名称" />
-          <el-table-column label="授权" min-width="210">
-            <template #default="{ row }">{{ licenseLabel(row.license) }}</template>
+        <el-table :data="devices" size="small" stripe border class="compact-device-table">
+          <el-table-column prop="id" label="ID" width="64" />
+          <el-table-column prop="deviceCode" label="设备码" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="deviceName" label="设备名" min-width="120" show-overflow-tooltip />
+          <el-table-column label="绑定卡密" min-width="210" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.cardKey || licenseLabel(row.license) }}</template>
           </el-table-column>
-          <el-table-column prop="appVersion" label="应用版本" width="120" />
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          <el-table-column label="激活时间" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.firstActivateAt) }}</template>
           </el-table-column>
-          <el-table-column prop="lastSeenAt" label="最后在线" min-width="190" />
-          <el-table-column label="操作" width="240">
+          <el-table-column label="到期时间" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.license?.expireAt) }}</template>
+          </el-table-column>
+          <el-table-column prop="lastIp" label="IP" width="130" show-overflow-tooltip />
+          <el-table-column label="在线状态" width="96">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.onlineStatus === 'online' ? 'success' : 'info'">{{ row.onlineStatus === 'online' ? '在线' : '离线' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="最后心跳" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.lastHeartbeatAt) }}</template>
+          </el-table-column>
+          <el-table-column prop="appVersion" label="版本" width="92" />
+          <el-table-column label="绑定状态" width="96">
+            <template #default="{ row }"><el-tag size="small" :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="操作" width="168" fixed="right">
             <template #default="{ row }">
               <el-button size="small" @click="changeDeviceStatus(row, 'active')">启用</el-button>
               <el-button size="small" @click="changeDeviceStatus(row, 'removed')">移除</el-button>
-              <el-button size="small" type="danger" @click="changeDeviceStatus(row, 'banned')">封禁</el-button>
+              <el-button size="small" type="danger" plain @click="changeDeviceStatus(row, 'banned')">封禁</el-button>
             </template>
           </el-table-column>
         </el-table>

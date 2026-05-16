@@ -20,7 +20,39 @@ export class DevicesController {
       licenseId: licenseId ? Number(licenseId) : undefined,
       status,
     };
-    return ok(await this.prisma.device.findMany({ where, include: { license: true }, orderBy: { id: 'desc' } }));
+    const devices = await this.prisma.device.findMany({
+      where,
+      include: {
+        license: {
+          include: {
+            product: true,
+            plan: true,
+            cardKeys: { select: { cardKey: true }, orderBy: { id: 'desc' }, take: 1 },
+          },
+        },
+        leases: {
+          where: { status: 'active', expireAt: { gt: new Date() } },
+          select: { id: true },
+          take: 1,
+        },
+        heartbeatLogs: {
+          where: { actionType: 'heartbeat' },
+          select: { createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    return ok(devices.map((device) => ({
+      ...device,
+      cardKey: device.license.cardKeys[0]?.cardKey ?? null,
+      onlineStatus: device.status === DeviceStatus.active && device.leases.length > 0 ? 'online' : 'offline',
+      lastHeartbeatAt: device.heartbeatLogs[0]?.createdAt ?? null,
+      leases: undefined,
+      heartbeatLogs: undefined,
+    })));
   }
 
   @Put(':id/status')

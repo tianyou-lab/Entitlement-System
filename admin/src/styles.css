@@ -253,6 +253,15 @@ button, input, textarea { font: inherit; }
 .data-table, .el-table { margin-top: 18px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
 .el-table th.el-table__cell { background: #f2f6fb; color: #43546a; font-weight: 800; }
 .el-table .cell { line-height: 1.45; }
+.compact-device-table .cell {
+  line-height: 1.25;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.compact-device-table .el-button--small {
+  padding-left: 7px;
+  padding-right: 7px;
+}
 .key-cell { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
 .key-text {
   min-width: 0;

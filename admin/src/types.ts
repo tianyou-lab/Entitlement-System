@@ -81,8 +81,12 @@ export interface Device {
   osVersion: string;
   appVersion: string;
   status: 'active' | 'removed' | 'banned';
+  firstActivateAt?: string;
   lastSeenAt: string;
   lastIp?: string;
+  cardKey?: string | null;
+  onlineStatus?: 'online' | 'offline';
+  lastHeartbeatAt?: string | null;
   license?: License;
 }
 
