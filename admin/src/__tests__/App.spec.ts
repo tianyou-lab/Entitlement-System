@@ -6,6 +6,7 @@ import App from '../App.vue';
 const api = vi.hoisted(() => ({
   changePassword: vi.fn(),
   clearToken: vi.fn(),
+  createAdmin: vi.fn(),
   createCardKey: vi.fn(),
   createChannel: vi.fn(),
   createDeviceUnbindRequest: vi.fn(),
@@ -17,9 +18,13 @@ const api = vi.hoisted(() => ({
   createRiskEvent: vi.fn(),
   createTenant: vi.fn(),
   createVersionPolicy: vi.fn(),
+  deleteCardKey: vi.fn(),
+  deleteProduct: vi.fn(),
+  getMonitoringMetrics: vi.fn(),
   getRiskSummary: vi.fn(),
   getToken: vi.fn(),
   listActivationLogs: vi.fn(),
+  listAdmins: vi.fn(),
   listAuditLogs: vi.fn(),
   listCardKeys: vi.fn(),
   listChannels: vi.fn(),
@@ -36,11 +41,14 @@ const api = vi.hoisted(() => ({
   listVersionPolicies: vi.fn(),
   login: vi.fn(),
   reviewDeviceUnbindRequest: vi.fn(),
+  updateAdminRole: vi.fn(),
+  updateAdminStatus: vi.fn(),
   updateCardKeyStatus: vi.fn(),
   updateChannelStatus: vi.fn(),
   updateDeviceStatus: vi.fn(),
   updateLicenseStatus: vi.fn(),
   updateOfflinePackageStatus: vi.fn(),
+  updateProduct: vi.fn(),
   updateProtectorAdapterStatus: vi.fn(),
   updateRiskEventStatus: vi.fn(),
   updateVersionPolicy: vi.fn(),
@@ -51,6 +59,7 @@ vi.mock('../api', () => api);
 beforeEach(() => {
   vi.clearAllMocks();
   api.listProducts.mockResolvedValue([{ id: 1, productCode: 'demo_app', name: 'Demo App', status: 'active' }]);
+  api.listAdmins.mockResolvedValue([]);
   api.listPlans.mockResolvedValue([{ id: 1, productId: 1, planCode: 'basic', name: 'Basic', status: 'active', durationDays: 365, maxDevices: 1, maxConcurrency: 1, graceHours: 24, featureFlags: {} }]);
   api.listLicenses.mockResolvedValue([{ id: 1, productId: 1, planId: 1, licenseKey: 'DEMO-AAAA-BBBB-CCCC', status: 'active' }]);
   api.listDevices.mockResolvedValue([]);
@@ -64,6 +73,11 @@ beforeEach(() => {
   api.listOfflinePackages.mockResolvedValue([]);
   api.listRiskEvents.mockResolvedValue([]);
   api.getRiskSummary.mockResolvedValue({ total: 0, open: 0, high: 0, resolved: 0 });
+  api.getMonitoringMetrics.mockResolvedValue({
+    api: { totalRequests: 0, successRequests: 0, failedRequests: 0, successRate: 0, averageLatencyMs: 0, errorCodes: {} },
+    database: { status: 'ok', latencyMs: 0 },
+    generatedAt: new Date().toISOString(),
+  });
   api.listDeviceUnbindRequests.mockResolvedValue([]);
   api.listProtectorAdapters.mockResolvedValue([]);
 });
